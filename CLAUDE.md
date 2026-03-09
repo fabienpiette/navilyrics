@@ -3,8 +3,8 @@
 ## Git Commit Style
 - Conventional Commits: `<type>[scope]: <description>`
 - Lowercase imperative, no trailing period, max 50 chars
-- One-line only; no body unless necessary
-- No Claude/AI attribution in commit messages
+- **One line only — never multi-line, no body, no Co-Authored-By**
+- No Claude/AI attribution of any kind in commit messages
 
 ## Commands
 
