@@ -18,6 +18,9 @@ make vet            # go vet ./...
 make build-all      # cross-compile
 make docker-build
 make up             # docker compose up -d --build
+make down           # docker compose down
+make logs           # docker compose logs -f
+make clean          # remove build artifacts
 
 Required env vars: NAVIDROME_URL, NAVIDROME_USER, NAVIDROME_PASS, MUSIC_DIR.
 Optional: PORT (default 8080), DRY_RUN (default false).
