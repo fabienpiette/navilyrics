@@ -88,7 +88,10 @@ func (c *Client) Do(ctx context.Context, method, path string, body any) (*http.R
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-ND-Authorization", "Bearer "+c.token)
+	c.mu.Lock()
+	tok := c.token
+	c.mu.Unlock()
+	req.Header.Set("X-ND-Authorization", "Bearer "+tok)
 
 	start := time.Now()
 	resp, err := c.httpClient.Do(req)

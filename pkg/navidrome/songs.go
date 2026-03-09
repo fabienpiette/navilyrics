@@ -25,12 +25,14 @@ func (c *Client) AllSongs(ctx context.Context) ([]Song, error) {
 		if err != nil {
 			return nil, fmt.Errorf("list songs (start=%d): %w", start, err)
 		}
-		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
 			return nil, fmt.Errorf("list songs: status %d", resp.StatusCode)
 		}
 		var page []Song
-		if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		err = json.NewDecoder(resp.Body).Decode(&page)
+		resp.Body.Close()
+		if err != nil {
 			return nil, fmt.Errorf("decode songs: %w", err)
 		}
 		all = append(all, page...)
