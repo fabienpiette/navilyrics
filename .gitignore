@@ -1,0 +1,6 @@
+navilyrics
+bin/
+coverage.out
+coverage.html
+.env
+*.lrc.tmp
