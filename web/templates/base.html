@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{block "title" .}}navilyrics{{end}}</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+</head>
+<body>
+<main>
+    <header>
+        <h1>navilyrics</h1>
+        <nav class="tab-bar">
+            <a class="tab {{if eq .ActiveTab "dashboard"}}active{{end}}" href="/">Dashboard</a>
+            <a class="tab {{if eq .ActiveTab "songs"}}active{{end}}" href="/songs">Songs</a>
+        </nav>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">&#9680;</button>
+    </header>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <div class="content">
+        {{block "content" .}}{{end}}
+    </div>
+
+    <footer>
+        <span class="motto">navilyrics</span>
+        <span class="version">{{.Version}}</span>
+    </footer>
+</main>
+<script>
+function toggleTheme() {
+    var html = document.documentElement;
+    html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', html.dataset.theme);
+}
+(function() {
+    var t = localStorage.getItem('theme');
+    if (t) document.documentElement.dataset.theme = t;
+})();
+(function() {
+    var msg = new URLSearchParams(window.location.search).get('toast');
+    if (!msg) return;
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.remove('hidden');
+    setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+    history.replaceState(null, '', window.location.pathname);
+})();
+document.addEventListener('htmx:afterRequest', function(e) {
+    var trigger = e.detail.xhr.getResponseHeader('HX-Trigger');
+    if (!trigger) return;
+    try {
+        var data = JSON.parse(trigger);
+        if (data.showToast) {
+            var toast = document.getElementById('toast');
+            toast.textContent = data.showToast;
+            toast.classList.remove('hidden');
+            setTimeout(function() { toast.classList.add('hidden'); }, 3000);
+        }
+    } catch(ex) {}
+});
+</script>
+</body>
+</html>
