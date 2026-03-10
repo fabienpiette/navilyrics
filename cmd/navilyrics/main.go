@@ -131,6 +131,7 @@ func runServer(args []string) error {
 	r.Get("/songs", h.Songs)
 	r.Get("/songs/rows", h.SongsRows)
 	r.Post("/run", h.RunBatch)
+	r.Post("/run/filtered", h.RunFiltered)
 	r.Get("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 

@@ -25,9 +25,17 @@
          href="#" onclick="setFilter('has');return false">Has lyrics</a>
     </div>
 
-    <form method="post" action="/run" style="margin-left:auto">
-      <button type="submit" class="btn small">Run batch</button>
-    </form>
+    <div style="margin-left:auto;display:flex;gap:.5rem">
+      <form method="post" action="/run/filtered" id="run-filtered-form"
+            onsubmit="this.querySelector('[name=q]').value=document.getElementById('search-input').value;this.querySelector('[name=filter]').value=document.getElementById('filter-input').value;">
+        <input type="hidden" name="q" value="">
+        <input type="hidden" name="filter" value="">
+        <button type="submit" class="btn secondary small">Run for results</button>
+      </form>
+      <form method="post" action="/run">
+        <button type="submit" class="btn small">Run all</button>
+      </form>
+    </div>
   </div>
 </div>
 

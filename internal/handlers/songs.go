@@ -179,6 +179,81 @@ func sortSongs(songs []navidrome.Song, field, dir string) {
 	})
 }
 
+// allMatchingSongs fetches every song matching query+filter with no display cap.
+// Used by RunFiltered so the batch covers all results, not just the 100 shown.
+func (h *Handler) allMatchingSongs(ctx context.Context, query, filter string) ([]navidrome.Song, error) {
+	songs, err := h.nd.AllSongs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	songs = filterByLyrics(songs, filter)
+	if query != "" {
+		q := strings.ToLower(query)
+		filtered := songs[:0]
+		for _, s := range songs {
+			if strings.Contains(strings.ToLower(s.Title), q) ||
+				strings.Contains(strings.ToLower(s.Artist), q) ||
+				strings.Contains(strings.ToLower(s.Album), q) {
+				filtered = append(filtered, s)
+			}
+		}
+		songs = filtered
+	}
+	return songs, nil
+}
+
+// RunFiltered processes only the songs matching the current search/filter.
+func (h *Handler) RunFiltered(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	query := r.FormValue("q")
+	filter := r.FormValue("filter")
+	switch filter {
+	case "missing", "has":
+	default:
+		filter = "all"
+	}
+
+	songs, err := h.allMatchingSongs(r.Context(), query, filter)
+	if err != nil {
+		http.Error(w, "navidrome: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	var mu sync.Mutex
+	var results []lyrics.Result
+	_ = h.proc.RunSongs(r.Context(), songs, func(res lyrics.Result) {
+		mu.Lock()
+		results = append(results, res)
+		mu.Unlock()
+	})
+
+	found, notFound, skipped, errs := 0, 0, 0, 0
+	for _, res := range results {
+		switch res.Status {
+		case "found", "dry_run":
+			found++
+		case "not_found":
+			notFound++
+		case "skipped":
+			skipped++
+		case "error":
+			errs++
+		}
+	}
+	h.render(w, "run_result.html", runResult{
+		ActiveTab: "songs",
+		Version:   h.version,
+		Results:   results,
+		Found:     found,
+		NotFound:  notFound,
+		Skipped:   skipped,
+		Errors:    errs,
+	})
+}
+
 type runResult struct {
 	ActiveTab string
 	Version   string

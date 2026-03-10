@@ -99,7 +99,12 @@ func (p *Processor) Run(ctx context.Context, progress func(Result)) error {
 	if err != nil {
 		return err
 	}
+	return p.RunSongs(ctx, songs, progress)
+}
 
+// RunSongs processes a given list of songs with a worker pool of 4.
+// progress is called once per result (may be called from any goroutine).
+func (p *Processor) RunSongs(ctx context.Context, songs []navidrome.Song, progress func(Result)) error {
 	const workers = 4
 	jobs := make(chan navidrome.Song, workers)
 	var wg sync.WaitGroup
