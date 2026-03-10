@@ -1,0 +1,18 @@
+{{define "songs_rows_body"}}
+{{range .Songs}}
+<tr>
+  <td>{{.Title}}</td>
+  <td class="muted">{{.Artist}}</td>
+  <td class="muted">{{.Album}}</td>
+  <td>
+    {{if .HasLyrics}}<span class="badge badge-found">yes</span>
+    {{else}}<span class="badge badge-not_found">missing</span>{{end}}
+  </td>
+</tr>
+{{else}}
+<tr><td colspan="4" class="empty">No songs found.</td></tr>
+{{end}}
+{{end}}
+<tbody id="songs-tbody">
+  {{template "songs_rows_body" .}}
+</tbody>
