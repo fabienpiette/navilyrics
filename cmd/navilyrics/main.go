@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync/atomic"
 
 	"github.com/go-chi/chi/v5"
@@ -53,7 +54,7 @@ func runCLI(args []string) error {
 
 	nd := navidrome.New(ndURL, ndUser, ndPass)
 	lrc := lrclib.New("https://lrclib.net")
-	proc := lyrics.NewProcessor(nd, lrc, musicDir, *dryRun)
+	proc := lyrics.NewProcessor(nd, lrc, strings.Split(musicDir, ":"), *dryRun)
 
 	var found, notFound, skipped, errCount atomic.Int64
 	progress := func(r lyrics.Result) {
@@ -105,7 +106,7 @@ func runServer(args []string) error {
 
 	nd := navidrome.New(ndURL, ndUser, ndPass)
 	lrc := lrclib.New("https://lrclib.net")
-	proc := lyrics.NewProcessor(nd, lrc, musicDir, dryRun)
+	proc := lyrics.NewProcessor(nd, lrc, strings.Split(musicDir, ":"), dryRun)
 
 	tmpls, err := handlers.ParseTemplates(web.FS)
 	if err != nil {

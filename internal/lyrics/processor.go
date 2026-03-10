@@ -3,6 +3,7 @@ package lyrics
 import (
 	"context"
 	"log"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -32,15 +33,29 @@ type Result struct {
 
 // Processor fetches and writes lyrics for Navidrome songs.
 type Processor struct {
-	nd       *navidrome.Client // may be nil in tests
-	lrc      LRCFetcher
-	musicDir string
-	dryRun   bool
+	nd        *navidrome.Client // may be nil in tests
+	lrc       LRCFetcher
+	musicDirs []string
+	dryRun    bool
 }
 
 // NewProcessor creates a Processor. nd may be nil when using ProcessSong directly.
-func NewProcessor(nd *navidrome.Client, lrc LRCFetcher, musicDir string, dryRun bool) *Processor {
-	return &Processor{nd: nd, lrc: lrc, musicDir: musicDir, dryRun: dryRun}
+// musicDirs is a list of base directories to search for audio files; the first
+// directory containing the relative song path is used.
+func NewProcessor(nd *navidrome.Client, lrc LRCFetcher, musicDirs []string, dryRun bool) *Processor {
+	return &Processor{nd: nd, lrc: lrc, musicDirs: musicDirs, dryRun: dryRun}
+}
+
+// resolveAudioPath finds the first musicDir where song.Path exists on disk.
+// Returns empty string if not found in any directory.
+func (p *Processor) resolveAudioPath(relPath string) string {
+	for _, dir := range p.musicDirs {
+		full := filepath.Join(dir, relPath)
+		if _, err := os.Stat(full); err == nil {
+			return full
+		}
+	}
+	return ""
 }
 
 // ProcessSong fetches and (unless dry-run) writes lyrics for a single song.
@@ -86,7 +101,13 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 		return r
 	}
 
-	audioPath := filepath.Join(p.musicDir, song.Path)
+	audioPath := p.resolveAudioPath(song.Path)
+	if audioPath == "" {
+		log.Printf("[error]     %s — %s: file not found in any music dir", song.Artist, song.Title)
+		r.Status = "error"
+		r.Err = "file not found in any music dir"
+		return r
+	}
 	if err := writeLyrics(audioPath, r.PlainLyrics, r.SyncedLyrics); err != nil {
 		log.Printf("[error]     %s — %s: %v", song.Artist, song.Title, err)
 		r.Status = "error"

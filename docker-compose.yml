@@ -8,10 +8,11 @@ services:
       NAVIDROME_URL: ${NAVIDROME_URL}
       NAVIDROME_USER: ${NAVIDROME_USER}
       NAVIDROME_PASS: ${NAVIDROME_PASS}
-      MUSIC_DIR: /music
+      MUSIC_DIR: /music-clean:/music-data
       DRY_RUN: ${DRY_RUN:-false}
     volumes:
-      - music-clean:/music
+      - music-clean:/music-clean
+      - music-data:/music-data
 
 volumes:
   music-clean:
@@ -20,3 +21,9 @@ volumes:
       type: "nfs"
       o: "addr=192.168.1.49,rw,noatime,nfsvers=4"
       device: ":/music-clean"
+  music-data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=192.168.1.49,rw,noatime,nfsvers=4"
+      device: ":/music-data"
