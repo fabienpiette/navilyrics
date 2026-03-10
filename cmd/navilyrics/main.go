@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 
@@ -18,13 +17,12 @@ import (
 	"github.com/user/navilyrics/internal/lyrics"
 	"github.com/user/navilyrics/pkg/lrclib"
 	"github.com/user/navilyrics/pkg/navidrome"
-	"github.com/user/navilyrics/pkg/tagger"
 	"github.com/user/navilyrics/web"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: navilyrics <run|serve|upgrade> [flags]")
+		fmt.Fprintln(os.Stderr, "usage: navilyrics <run|serve> [flags]")
 		os.Exit(1)
 	}
 	switch os.Args[1] {
@@ -34,10 +32,6 @@ func main() {
 		}
 	case "serve":
 		if err := runServer(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-	case "upgrade":
-		if err := runUpgrade(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
 	default:
@@ -146,46 +140,6 @@ func runServer(args []string) error {
 	return http.ListenAndServe(":"+*port, r)
 }
 
-// runUpgrade walks all music directories and backfills SYLT frames into MP3
-// files that have TXXX:SYNCEDLYRICS but no SYLT (written by an older version).
-func runUpgrade(args []string) error {
-	fs3 := flag.NewFlagSet("upgrade", flag.ExitOnError)
-	if err := fs3.Parse(args); err != nil {
-		return err
-	}
-
-	musicDirs := strings.Split(requireEnv("MUSIC_DIR"), ":")
-
-	var upgraded, skipped, errCount int
-	for _, dir := range musicDirs {
-		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return err
-			}
-			if !strings.EqualFold(filepath.Ext(path), ".mp3") {
-				return nil
-			}
-			ok, err := tagger.BackfillSYLT(path)
-			if err != nil {
-				log.Printf("[error] %s: %v", path, err)
-				errCount++
-				return nil
-			}
-			if ok {
-				log.Printf("[upgraded] %s", path)
-				upgraded++
-			} else {
-				skipped++
-			}
-			return nil
-		})
-		if err != nil {
-			return fmt.Errorf("walk %s: %w", dir, err)
-		}
-	}
-	log.Printf("done: upgraded=%d skipped=%d errors=%d", upgraded, skipped, errCount)
-	return nil
-}
 
 func requireEnv(key string) string {
 	v := os.Getenv(key)
