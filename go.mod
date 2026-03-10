@@ -4,6 +4,7 @@ go 1.23.2
 
 require (
 	github.com/bogem/id3v2/v2 v2.1.4 // indirect
+	github.com/go-chi/chi/v5 v5.2.5 // indirect
 	github.com/icza/bitio v1.1.0 // indirect
 	github.com/mewkiz/flac v1.0.13 // indirect
 	github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d // indirect
