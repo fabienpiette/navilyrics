@@ -13,7 +13,7 @@
            hx-get="/songs/rows"
            hx-trigger="input delay:300ms, search"
            hx-target="#songs-tbody"
-           hx-swap="outerHTML"
+           hx-swap="innerHTML"
            hx-include="#songs-controls">
 
     <div class="filter-pills">
@@ -71,6 +71,9 @@ function sortBy(col) {
 }
 function setFilter(val) {
   document.getElementById('filter-input').value = val;
+  document.querySelectorAll('.filter-pill').forEach(function(el) {
+    el.classList.toggle('active', el.getAttribute('onclick') === "setFilter('" + val + "');return false");
+  });
   htmx.trigger(document.getElementById('search-input'), 'search');
 }
 </script>
