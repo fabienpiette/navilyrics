@@ -53,6 +53,15 @@ type SongQuery struct {
 
 // ListSongs fetches up to q.Limit songs with the given sort/filter.
 func (c *Client) ListSongs(ctx context.Context, q SongQuery) ([]Song, error) {
+	if q.Limit <= 0 {
+		return nil, fmt.Errorf("list songs: Limit must be > 0")
+	}
+	if q.Sort == "" {
+		q.Sort = "title"
+	}
+	if q.Dir == "" {
+		q.Dir = "ASC"
+	}
 	params := url.Values{
 		"_start": []string{"0"},
 		"_end":   []string{strconv.Itoa(q.Limit)},
