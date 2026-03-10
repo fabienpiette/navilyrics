@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -32,10 +33,13 @@ func (h *Handler) render(w http.ResponseWriter, name string, data any) {
 		http.Error(w, "template not found: "+name, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := t.ExecuteTemplate(w, "base.html", data); err != nil {
+	var buf bytes.Buffer
+	if err := t.ExecuteTemplate(&buf, "base.html", data); err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	buf.WriteTo(w)
 }
 
 // renderPartial executes a standalone partial template (no base.html wrapper).
@@ -45,17 +49,22 @@ func (h *Handler) renderPartial(w http.ResponseWriter, name string, data any) {
 		http.Error(w, "partial not found: "+name, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := t.Execute(w, data); err != nil {
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
 		http.Error(w, "partial error: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	buf.WriteTo(w)
 }
 
 // ParseTemplates builds a per-page template map (each page clones base.html).
 // songs.html also gets the songs_rows_body partial injected so it can use
 // {{template "songs_rows_body" .}} in its initial render.
 func ParseTemplates(fsys fs.FS) (map[string]*template.Template, error) {
-	base, err := template.ParseFS(fsys, "templates/base.html")
+	base, err := template.New("base.html").Funcs(template.FuncMap{
+		"lower": strings.ToLower,
+	}).ParseFS(fsys, "templates/base.html")
 	if err != nil {
 		return nil, err
 	}
