@@ -3,6 +3,7 @@ package lyrics
 import (
 	"context"
 	"log"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -85,7 +86,8 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 		return r
 	}
 
-	if err := writeLyrics(song.Path, r.PlainLyrics, r.SyncedLyrics); err != nil {
+	audioPath := filepath.Join(p.musicDir, song.Path)
+	if err := writeLyrics(audioPath, r.PlainLyrics, r.SyncedLyrics); err != nil {
 		log.Printf("[error]     %s — %s: %v", song.Artist, song.Title, err)
 		r.Status = "error"
 		r.Err = err.Error()
