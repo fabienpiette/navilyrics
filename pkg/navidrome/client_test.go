@@ -34,12 +34,13 @@ func TestAllSongs(t *testing.T) {
 		case "/api/song":
 			start := r.URL.Query().Get("_start")
 			if start == "0" {
-				json.NewEncoder(w).Encode([]navidrome.Song{
-					{ID: "1", Title: "Song A", HasLyrics: false},
-					{ID: "2", Title: "Song B", HasLyrics: true},
-				})
+				// lyrics:[] → HasLyrics=false; non-empty lyrics array → HasLyrics=true
+				w.Write([]byte(`[
+					{"id":"1","title":"Song A","lyrics":[]},
+					{"id":"2","title":"Song B","lyrics":[{"lang":"xxx","value":"line"}]}
+				]`))
 			} else {
-				json.NewEncoder(w).Encode([]navidrome.Song{})
+				w.Write([]byte(`[]`))
 			}
 		default:
 			http.NotFound(w, r)
@@ -83,10 +84,7 @@ func TestListSongs(t *testing.T) {
 			if q.Get("_end") != "50" {
 				t.Errorf("want _end=50, got %q", q.Get("_end"))
 			}
-			if q.Get("has_lyrics") != "true" {
-				t.Errorf("want has_lyrics=true, got %q", q.Get("has_lyrics"))
-			}
-			json.NewEncoder(w).Encode([]navidrome.Song{{ID: "1", Title: "T", HasLyrics: true}})
+			w.Write([]byte(`[{"id":"1","title":"T","lyrics":[]}]`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -95,12 +93,10 @@ func TestListSongs(t *testing.T) {
 
 	c := navidrome.New(srv.URL, "u", "p")
 	_ = c.Authenticate()
-	hasLyrics := true
 	songs, err := c.ListSongs(context.Background(), navidrome.SongQuery{
-		Sort:      "artist",
-		Dir:       "DESC",
-		HasLyrics: &hasLyrics,
-		Limit:     50,
+		Sort:  "artist",
+		Dir:   "DESC",
+		Limit: 50,
 	})
 	if err != nil {
 		t.Fatal(err)

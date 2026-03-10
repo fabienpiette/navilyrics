@@ -45,10 +45,9 @@ func (c *Client) AllSongs(ctx context.Context) ([]Song, error) {
 
 // SongQuery parameterises a ListSongs request.
 type SongQuery struct {
-	Sort      string // "title" | "artist" | "album"
-	Dir       string // "ASC" | "DESC"
-	HasLyrics *bool  // nil = all, true = has lyrics, false = missing
-	Limit     int
+	Sort  string // "title" | "artist" | "album"
+	Dir   string // "ASC" | "DESC"
+	Limit int
 }
 
 // ListSongs fetches up to q.Limit songs with the given sort/filter.
@@ -67,9 +66,6 @@ func (c *Client) ListSongs(ctx context.Context, q SongQuery) ([]Song, error) {
 		"_end":   []string{strconv.Itoa(q.Limit)},
 		"_sort":  []string{q.Sort},
 		"_order": []string{q.Dir},
-	}
-	if q.HasLyrics != nil {
-		params.Set("has_lyrics", strconv.FormatBool(*q.HasLyrics))
 	}
 	resp, err := c.Do(ctx, http.MethodGet, "/api/song?"+params.Encode(), nil)
 	if err != nil {

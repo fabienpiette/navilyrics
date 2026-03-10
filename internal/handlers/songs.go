@@ -107,22 +107,21 @@ func (h *Handler) fetchRows(ctx context.Context, query, sort, dir, filter string
 			}
 		}
 		songs = filtered
-	} else {
-		// No search: let Navidrome sort/filter and return only what we display.
-		var hasLyrics *bool
-		switch filter {
-		case "has":
-			v := true
-			hasLyrics = &v
-		case "missing":
-			v := false
-			hasLyrics = &v
+	} else if filter != "all" {
+		// has/missing filter: Navidrome doesn't support server-side lyrics filter,
+		// so fetch all songs and filter in Go.
+		songs, err = h.nd.AllSongs(ctx)
+		if err != nil {
+			return songsRowsData{}, err
 		}
+		songs = filterByLyrics(songs, filter)
+		sortSongs(songs, sort, dir)
+	} else {
+		// No search, no filter: let Navidrome sort and return only what we display.
 		songs, err = h.nd.ListSongs(ctx, navidrome.SongQuery{
-			Sort:      sort,
-			Dir:       dir,
-			HasLyrics: hasLyrics,
-			Limit:     maxDisplay,
+			Sort:  sort,
+			Dir:   dir,
+			Limit: maxDisplay,
 		})
 		if err != nil {
 			return songsRowsData{}, err
