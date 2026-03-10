@@ -1,0 +1,49 @@
+{{template "base.html" .}}
+
+{{define "title"}}navilyrics — songs{{end}}
+
+{{define "content"}}
+<div class="toolbar">
+    <div class="filter-pills">
+        <a class="filter-pill {{if eq .Filter "all"}}active{{end}}" href="/songs?filter=all">All</a>
+        <a class="filter-pill {{if eq .Filter "missing"}}active{{end}}" href="/songs?filter=missing">Missing</a>
+        <a class="filter-pill {{if eq .Filter "has"}}active{{end}}" href="/songs?filter=has">Has lyrics</a>
+    </div>
+    <form method="post" action="/run" style="margin-left:auto">
+        <button type="submit" class="btn small">Run batch</button>
+    </form>
+</div>
+
+{{if .Songs}}
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Artist</th>
+            <th>Album</th>
+            <th>Lyrics</th>
+        </tr>
+    </thead>
+    <tbody>
+    {{range .Songs}}
+    <tr>
+        <td>{{.Title}}</td>
+        <td class="muted">{{.Artist}}</td>
+        <td class="muted">{{.Album}}</td>
+        <td>
+            {{if .HasLyrics}}
+            <span class="badge badge-found">yes</span>
+            {{else}}
+            <span class="badge badge-not_found">missing</span>
+            {{end}}
+        </td>
+    </tr>
+    {{end}}
+    </tbody>
+</table>
+</div>
+{{else}}
+<p class="empty">No songs found.</p>
+{{end}}
+{{end}}

@@ -1,0 +1,43 @@
+{{template "base.html" .}}
+
+{{define "title"}}navilyrics — run results{{end}}
+
+{{define "content"}}
+<h2>Batch run results</h2>
+<div class="stats-grid" style="margin-bottom:1.5rem">
+    <div class="stat-cell">
+        <div class="stat-num">{{.Found}}</div>
+        <div class="stat-label">found</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-num">{{.NotFound}}</div>
+        <div class="stat-label">not found</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-num">{{.Skipped}}</div>
+        <div class="stat-label">skipped</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-num">{{.Errors}}</div>
+        <div class="stat-label">errors</div>
+    </div>
+</div>
+
+{{if .Results}}
+<div class="run-log">
+{{range .Results}}
+    <div class="run-log-line">
+        <span class="badge badge-{{.Status}}">{{.Status}}</span>
+        <span class="muted" style="margin-left:.5rem">{{.Artist}}</span>
+        — {{.Title}}
+        {{if .Err}}<span class="muted"> ({{.Err}})</span>{{end}}
+    </div>
+{{end}}
+</div>
+{{end}}
+
+<div class="form-actions" style="margin-top:1rem">
+    <a href="/" class="btn secondary">Dashboard</a>
+    <a href="/songs" class="btn secondary">Songs</a>
+</div>
+{{end}}
