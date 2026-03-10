@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	goSort "sort"
 	"strings"
 	"sync"
 
@@ -10,10 +11,7 @@ import (
 	"github.com/user/navilyrics/pkg/navidrome"
 )
 
-const (
-	maxFetch   = 500
-	maxDisplay = 100
-)
+const maxDisplay = 100
 
 type songsRowsData struct {
 	Songs     []navidrome.Song
@@ -80,29 +78,25 @@ func songParams(r *http.Request) (sort, dir, filter string) {
 }
 
 // fetchRows calls Navidrome and applies Go-side search + truncation.
+//
+// No query: uses ListSongs (Navidrome-native sort/filter, limit=maxDisplay) — fast.
+// With query: uses AllSongs (full paginated fetch) then filters/sorts in Go so
+// all songs in the library are searched, not just the first page.
 func (h *Handler) fetchRows(ctx context.Context, query, sort, dir, filter string) (songsRowsData, error) {
-	var hasLyrics *bool
-	switch filter {
-	case "has":
-		v := true
-		hasLyrics = &v
-	case "missing":
-		v := false
-		hasLyrics = &v
-	}
+	var songs []navidrome.Song
+	var err error
 
-	songs, err := h.nd.ListSongs(ctx, navidrome.SongQuery{
-		Sort:      sort,
-		Dir:       dir,
-		HasLyrics: hasLyrics,
-		Limit:     maxFetch,
-	})
-	if err != nil {
-		return songsRowsData{}, err
-	}
-
-	// Go-side multi-field search.
 	if query != "" {
+		// Fetch the entire library so search covers all songs.
+		songs, err = h.nd.AllSongs(ctx)
+		if err != nil {
+			return songsRowsData{}, err
+		}
+		// Apply hasLyrics filter in Go (AllSongs doesn't filter).
+		songs = filterByLyrics(songs, filter)
+		// Sort in Go (AllSongs always returns title ASC).
+		sortSongs(songs, sort, dir)
+		// Text search across title, artist, album.
 		q := strings.ToLower(query)
 		filtered := songs[:0]
 		for _, s := range songs {
@@ -113,6 +107,26 @@ func (h *Handler) fetchRows(ctx context.Context, query, sort, dir, filter string
 			}
 		}
 		songs = filtered
+	} else {
+		// No search: let Navidrome sort/filter and return only what we display.
+		var hasLyrics *bool
+		switch filter {
+		case "has":
+			v := true
+			hasLyrics = &v
+		case "missing":
+			v := false
+			hasLyrics = &v
+		}
+		songs, err = h.nd.ListSongs(ctx, navidrome.SongQuery{
+			Sort:      sort,
+			Dir:       dir,
+			HasLyrics: hasLyrics,
+			Limit:     maxDisplay,
+		})
+		if err != nil {
+			return songsRowsData{}, err
+		}
 	}
 
 	total := len(songs)
@@ -130,6 +144,39 @@ func (h *Handler) fetchRows(ctx context.Context, query, sort, dir, filter string
 		Total:     total,
 		Truncated: truncated,
 	}, nil
+}
+
+func filterByLyrics(songs []navidrome.Song, filter string) []navidrome.Song {
+	if filter != "has" && filter != "missing" {
+		return songs
+	}
+	want := filter == "has"
+	out := songs[:0]
+	for _, s := range songs {
+		if s.HasLyrics == want {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func sortSongs(songs []navidrome.Song, field, dir string) {
+	goSort.Slice(songs, func(i, j int) bool {
+		var a, b string
+		switch field {
+		case "artist":
+			a, b = songs[i].Artist, songs[j].Artist
+		case "album":
+			a, b = songs[i].Album, songs[j].Album
+		default:
+			a, b = songs[i].Title, songs[j].Title
+		}
+		a, b = strings.ToLower(a), strings.ToLower(b)
+		if dir == "DESC" {
+			return a > b
+		}
+		return a < b
+	})
 }
 
 type runResult struct {
