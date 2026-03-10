@@ -2,6 +2,7 @@ package lyrics
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,7 @@ func WriteLRCFile(audioPath, synced string) error {
 		os.Remove(tmp)
 		return fmt.Errorf("rename lrc: %w", err)
 	}
+	log.Printf("lrc: wrote %s", lrcPath)
 	return nil
 }
 
@@ -41,7 +43,7 @@ func writeLyrics(audioPath, plain, synced string) error {
 
 	tgr, err := tagger.ForFile(audioPath)
 	if err != nil {
-		// Unsupported format — .lrc was still written (if synced != ""), keep it
+		log.Printf("tags: skip embed (unsupported format) %s", audioPath)
 		return nil
 	}
 
@@ -51,6 +53,7 @@ func writeLyrics(audioPath, plain, synced string) error {
 		}
 		return fmt.Errorf("embed tags %s: %w", audioPath, err)
 	}
+	log.Printf("tags: embedded %s", audioPath)
 	return nil
 }
 

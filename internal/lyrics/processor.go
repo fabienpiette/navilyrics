@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/user/navilyrics/pkg/lrclib"
 	"github.com/user/navilyrics/pkg/navidrome"
@@ -69,6 +70,7 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 	}
 
 	if !ok {
+		log.Printf("[not_found] %s — %s", song.Artist, song.Title)
 		r.Status = "not_found"
 		return r
 	}
@@ -78,16 +80,19 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 	r.Source = "lrclib"
 
 	if p.dryRun {
+		log.Printf("[dry_run]   %s — %s", song.Artist, song.Title)
 		r.Status = "dry_run"
 		return r
 	}
 
 	if err := writeLyrics(song.Path, r.PlainLyrics, r.SyncedLyrics); err != nil {
+		log.Printf("[error]     %s — %s: %v", song.Artist, song.Title, err)
 		r.Status = "error"
 		r.Err = err.Error()
 		return r
 	}
 
+	log.Printf("[found]     %s — %s", song.Artist, song.Title)
 	r.Status = "found"
 	return r
 }
@@ -105,6 +110,9 @@ func (p *Processor) Run(ctx context.Context, progress func(Result)) error {
 // RunSongs processes a given list of songs with a worker pool of 4.
 // progress is called once per result (may be called from any goroutine).
 func (p *Processor) RunSongs(ctx context.Context, songs []navidrome.Song, progress func(Result)) error {
+	log.Printf("run: starting %d songs (dry_run=%v)", len(songs), p.dryRun)
+	start := time.Now()
+
 	const workers = 4
 	jobs := make(chan navidrome.Song, workers)
 	var wg sync.WaitGroup
@@ -136,5 +144,7 @@ func (p *Processor) RunSongs(ctx context.Context, songs []navidrome.Song, progre
 	}
 	close(jobs)
 	wg.Wait()
+
+	log.Printf("run: finished %d songs in %s", len(songs), time.Since(start).Round(time.Millisecond))
 	return ctx.Err()
 }
