@@ -126,6 +126,7 @@ func runServer(args []string) error {
 	r.Get("/", h.Dashboard)
 	r.Get("/songs", h.Songs)
 	r.Post("/run", h.RunBatch)
+	r.Get("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	log.Printf("listening on :%s", *port)

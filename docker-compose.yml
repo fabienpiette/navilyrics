@@ -11,4 +11,12 @@ services:
       MUSIC_DIR: /music
       DRY_RUN: ${DRY_RUN:-false}
     volumes:
-      - ${MUSIC_DIR}:/music
+      - music-clean:/music
+
+volumes:
+  music-clean:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=192.168.1.49,rw,noatime,nfsvers=4"
+      device: ":/music-clean"
