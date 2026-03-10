@@ -1,0 +1,29 @@
+{{template "base.html" .}}
+
+{{define "title"}}navilyrics — dashboard{{end}}
+
+{{define "content"}}
+<h2>Library overview</h2>
+<div class="stats-grid">
+    <div class="stat-cell">
+        <div class="stat-num">{{.Total}}</div>
+        <div class="stat-label">total songs</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-num">{{.HasLyrics}}</div>
+        <div class="stat-label">with lyrics</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-num">{{.Missing}}</div>
+        <div class="stat-label">missing</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-num">{{.Pct}}%</div>
+        <div class="stat-label">coverage</div>
+    </div>
+</div>
+<div class="form-actions">
+    <a href="/songs" class="btn secondary">Browse songs</a>
+    <a href="/songs?filter=missing" class="btn">Find missing lyrics</a>
+</div>
+{{end}}
