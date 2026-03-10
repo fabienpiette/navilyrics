@@ -83,6 +83,44 @@ func (t *mp3Tagger) WriteLyrics(path, plain, synced string) error {
 	return nil
 }
 
+// BackfillSYLT adds a SYLT frame to an MP3 that already has TXXX:SYNCEDLYRICS
+// but no SYLT. Returns true if the file was modified, false if it was skipped
+// (already has SYLT, or has no TXXX:SYNCEDLYRICS to read from).
+func BackfillSYLT(path string) (bool, error) {
+	tag, err := id3.Open(path, id3.Options{Parse: true})
+	if err != nil {
+		return false, fmt.Errorf("mp3 open %s: %w", path, err)
+	}
+	defer tag.Close()
+
+	if len(tag.GetFrames("SYLT")) > 0 {
+		return false, nil // already has SYLT
+	}
+
+	var synced string
+	for _, f := range tag.GetFrames("TXXX") {
+		if tf, ok := f.(id3.UserDefinedTextFrame); ok {
+			if strings.EqualFold(tf.Description, "SYNCEDLYRICS") {
+				synced = tf.Value
+				break
+			}
+		}
+	}
+	if synced == "" {
+		return false, nil // nothing to backfill
+	}
+
+	body := encodeSYLT(synced)
+	if body == nil {
+		return false, nil
+	}
+	tag.AddFrame("SYLT", id3.UnknownFrame{Body: body})
+	if err := tag.Save(); err != nil {
+		return false, fmt.Errorf("mp3 save %s: %w", path, err)
+	}
+	return true, nil
+}
+
 // encodeSYLT builds the raw ID3v2 SYLT frame body from an LRC string.
 //
 // Frame layout (ID3v2 spec):
