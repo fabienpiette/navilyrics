@@ -3,56 +3,133 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/user/navilyrics/internal/lyrics"
 	"github.com/user/navilyrics/pkg/navidrome"
 )
 
+const (
+	maxFetch   = 500
+	maxDisplay = 100
+)
+
+type songsRowsData struct {
+	Songs     []navidrome.Song
+	Query     string
+	Sort      string
+	Dir       string
+	Filter    string
+	Total     int  // count after search filter, before slice
+	Truncated bool // true when Total > maxDisplay
+}
+
 type songsData struct {
 	ActiveTab string
 	Version   string
-	Songs     []navidrome.Song
-	Filter    string // "all" | "missing" | "has"
+	songsRowsData
 }
 
-// Songs renders the /songs page with optional filter.
+// Songs renders the /songs full page with the first 100 songs.
 func (h *Handler) Songs(w http.ResponseWriter, r *http.Request) {
-	filter := r.URL.Query().Get("filter")
-	if filter == "" {
-		filter = "all"
-	}
-
-	ctx := context.Background()
-	all, err := h.nd.AllSongs(ctx)
+	sort, dir, filter := songParams(r)
+	rows, err := h.fetchRows(r.Context(), "", sort, dir, filter)
 	if err != nil {
 		http.Error(w, "navidrome: "+err.Error(), http.StatusBadGateway)
 		return
 	}
+	h.render(w, "songs.html", songsData{
+		ActiveTab:     "songs",
+		Version:       h.version,
+		songsRowsData: rows,
+	})
+}
 
-	filtered := make([]navidrome.Song, 0, len(all))
-	for _, s := range all {
-		switch filter {
-		case "missing":
-			if !s.HasLyrics {
+// SongsRows is the HTMX partial endpoint — returns only <tbody> rows.
+func (h *Handler) SongsRows(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	sort, dir, filter := songParams(r)
+	rows, err := h.fetchRows(r.Context(), q, sort, dir, filter)
+	if err != nil {
+		http.Error(w, "navidrome: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	h.renderPartial(w, "songs_rows.html", rows)
+}
+
+// songParams extracts and validates sort/dir/filter from request query params.
+func songParams(r *http.Request) (sort, dir, filter string) {
+	sort = r.URL.Query().Get("sort")
+	switch sort {
+	case "artist", "album":
+	default:
+		sort = "title"
+	}
+	dir = r.URL.Query().Get("dir")
+	if dir != "DESC" {
+		dir = "ASC"
+	}
+	filter = r.URL.Query().Get("filter")
+	switch filter {
+	case "missing", "has":
+	default:
+		filter = "all"
+	}
+	return
+}
+
+// fetchRows calls Navidrome and applies Go-side search + truncation.
+func (h *Handler) fetchRows(ctx context.Context, query, sort, dir, filter string) (songsRowsData, error) {
+	var hasLyrics *bool
+	switch filter {
+	case "has":
+		v := true
+		hasLyrics = &v
+	case "missing":
+		v := false
+		hasLyrics = &v
+	}
+
+	songs, err := h.nd.ListSongs(ctx, navidrome.SongQuery{
+		Sort:      sort,
+		Dir:       dir,
+		HasLyrics: hasLyrics,
+		Limit:     maxFetch,
+	})
+	if err != nil {
+		return songsRowsData{}, err
+	}
+
+	// Go-side multi-field search.
+	if query != "" {
+		q := strings.ToLower(query)
+		filtered := songs[:0]
+		for _, s := range songs {
+			if strings.Contains(strings.ToLower(s.Title), q) ||
+				strings.Contains(strings.ToLower(s.Artist), q) ||
+				strings.Contains(strings.ToLower(s.Album), q) {
 				filtered = append(filtered, s)
 			}
-		case "has":
-			if s.HasLyrics {
-				filtered = append(filtered, s)
-			}
-		default:
-			filtered = append(filtered, s)
 		}
+		songs = filtered
 	}
 
-	data := songsData{
-		ActiveTab: "songs",
-		Version:   h.version,
-		Songs:     filtered,
-		Filter:    filter,
+	total := len(songs)
+	truncated := total > maxDisplay
+	if truncated {
+		songs = songs[:maxDisplay]
 	}
-	h.render(w, "songs.html", data)
+
+	return songsRowsData{
+		Songs:     songs,
+		Query:     query,
+		Sort:      sort,
+		Dir:       dir,
+		Filter:    filter,
+		Total:     total,
+		Truncated: truncated,
+	}, nil
 }
 
 type runResult struct {
@@ -75,7 +152,7 @@ func (h *Handler) RunBatch(w http.ResponseWriter, r *http.Request) {
 	var mu sync.Mutex
 	var results []lyrics.Result
 
-	ctx := context.Background()
+	ctx := r.Context()
 	err := h.proc.Run(ctx, func(res lyrics.Result) {
 		mu.Lock()
 		results = append(results, res)

@@ -111,8 +111,12 @@ func runServer(args []string) error {
 	if err != nil {
 		return fmt.Errorf("parse templates: %w", err)
 	}
+	partials, err := handlers.ParsePartials(web.FS)
+	if err != nil {
+		return fmt.Errorf("parse partials: %w", err)
+	}
 
-	h := handlers.New(nd, proc, tmpls, "dev")
+	h := handlers.New(nd, proc, tmpls, partials, "dev")
 
 	staticFS, err := fs.Sub(web.FS, "static")
 	if err != nil {
@@ -125,6 +129,7 @@ func runServer(args []string) error {
 
 	r.Get("/", h.Dashboard)
 	r.Get("/songs", h.Songs)
+	r.Get("/songs/rows", h.SongsRows)
 	r.Post("/run", h.RunBatch)
 	r.Get("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
