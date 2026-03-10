@@ -8,14 +8,6 @@ import (
 	"github.com/user/navilyrics/pkg/tagger"
 )
 
-func TestMain(m *testing.M) {
-	if err := os.MkdirAll("testdata", 0755); err != nil {
-		panic(err)
-	}
-	generateMP3Fixture()
-	os.Exit(m.Run())
-}
-
 func generateMP3Fixture() {
 	// Minimal valid ID3v2.3 header + one silent MPEG1 Layer3 frame
 	data := []byte{
