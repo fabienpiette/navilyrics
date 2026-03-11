@@ -218,6 +218,9 @@ a { color:inherit; }
 .preview-details .pd-path {
     font-family:ui-monospace,monospace;
     font-size:.65rem;
+    overflow:visible;
+    text-overflow:unset;
+    white-space:normal;
     word-break:break-all;
 }
 .preview-actions {
