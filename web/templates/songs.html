@@ -249,11 +249,16 @@ function doFetchLyrics() {
       btn.textContent = 'Search';
       if (d.status === 'found') {
         hideSearchForm();
+        _exitEditMode(); // ensure we have a <pre>, not a <textarea>
         _pendingLyrics = {plain: d.plainLyrics || '', synced: d.syncedLyrics || ''};
-        // Show found lyrics in preview (not yet saved)
-        var lrc = document.getElementById('preview-lrc');
-        lrc.className = 'preview-lrc';
-        lrc.textContent = d.syncedLyrics || d.plainLyrics || '';
+        var text = d.syncedLyrics || d.plainLyrics || '';
+        // Replace the element to guarantee a clean <pre> with no stale state
+        var old = document.getElementById('preview-lrc');
+        var pre = document.createElement('pre');
+        pre.id = 'preview-lrc';
+        pre.className = 'preview-lrc';
+        pre.textContent = text;
+        old.parentNode.replaceChild(pre, old);
         // Show confirm/discard buttons
         document.getElementById('btn-confirm').style.display = '';
         document.getElementById('btn-discard').style.display = '';
