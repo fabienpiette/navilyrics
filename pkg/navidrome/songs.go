@@ -47,6 +47,7 @@ func (c *Client) AllSongs(ctx context.Context) ([]Song, error) {
 type SongQuery struct {
 	Sort  string // "title" | "artist" | "album"
 	Dir   string // "ASC" | "DESC"
+	Start int    // zero-based offset for pagination
 	Limit int
 }
 
@@ -62,8 +63,8 @@ func (c *Client) ListSongs(ctx context.Context, q SongQuery) ([]Song, error) {
 		q.Dir = "ASC"
 	}
 	params := url.Values{
-		"_start": []string{"0"},
-		"_end":   []string{strconv.Itoa(q.Limit)},
+		"_start": []string{strconv.Itoa(q.Start)},
+		"_end":   []string{strconv.Itoa(q.Start + q.Limit)},
 		"_sort":  []string{q.Sort},
 		"_order": []string{q.Dir},
 	}

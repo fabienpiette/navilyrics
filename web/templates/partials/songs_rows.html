@@ -15,5 +15,15 @@
 {{else}}
 <tr><td colspan="4" class="empty">No songs found.</td></tr>
 {{end}}
+{{if .HasMore}}
+<tr hx-get="/songs/rows"
+    hx-trigger="intersect once"
+    hx-swap="outerHTML"
+    hx-target="this"
+    hx-include="#songs-controls"
+    hx-vals='{"start": "{{.NextStart}}"}'>
+  <td colspan="4" style="height:4px;padding:0;"></td>
+</tr>
+{{end}}
 {{end}}
 {{template "songs_rows_body" .}}

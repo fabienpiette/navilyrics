@@ -63,13 +63,6 @@
       </table>
     </div>
 
-    {{if .Truncated}}
-    <p class="muted" style="font-size:.75rem;margin-top:.5rem">
-      Showing first {{len .Songs}} of {{.Total}} results — refine your search.
-    </p>
-    {{else if .Songs}}
-    <p class="muted" style="font-size:.75rem;margin-top:.5rem">{{len .Songs}} songs</p>
-    {{end}}
   </div>
 
   <aside class="preview-panel" id="preview-panel" aria-label="Lyrics preview">

@@ -4,12 +4,13 @@ import (
 	"context"
 	"net/http"
 	goSort "sort"
+	"strconv"
 	"strings"
 
 	"github.com/user/navilyrics/pkg/navidrome"
 )
 
-const maxDisplay = 100
+const pageSize = 50
 
 type songsRowsData struct {
 	Songs     []navidrome.Song
@@ -17,8 +18,8 @@ type songsRowsData struct {
 	Sort      string
 	Dir       string
 	Filter    string
-	Total     int  // count after search filter, before slice
-	Truncated bool // true when Total > maxDisplay
+	HasMore   bool
+	NextStart int
 }
 
 type songsData struct {
@@ -27,10 +28,10 @@ type songsData struct {
 	songsRowsData
 }
 
-// Songs renders the /songs full page with the first 100 songs.
+// Songs renders the /songs full page with the first page of songs.
 func (h *Handler) Songs(w http.ResponseWriter, r *http.Request) {
 	sort, dir, filter := songParams(r)
-	rows, err := h.fetchRows(r.Context(), "", sort, dir, filter)
+	rows, err := h.fetchRows(r.Context(), "", 0, sort, dir, filter)
 	if err != nil {
 		http.Error(w, "navidrome: "+err.Error(), http.StatusBadGateway)
 		return
@@ -45,8 +46,9 @@ func (h *Handler) Songs(w http.ResponseWriter, r *http.Request) {
 // SongsRows is the HTMX partial endpoint — returns only <tbody> rows.
 func (h *Handler) SongsRows(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
+	start, _ := strconv.Atoi(r.URL.Query().Get("start"))
 	sort, dir, filter := songParams(r)
-	rows, err := h.fetchRows(r.Context(), q, sort, dir, filter)
+	rows, err := h.fetchRows(r.Context(), q, start, sort, dir, filter)
 	if err != nil {
 		http.Error(w, "navidrome: "+err.Error(), http.StatusBadGateway)
 		return
@@ -75,61 +77,63 @@ func songParams(r *http.Request) (sort, dir, filter string) {
 	return
 }
 
-// fetchRows calls Navidrome and applies Go-side search + truncation.
+// fetchRows calls Navidrome and returns one page of songs starting at start.
 //
-// No query: uses ListSongs (Navidrome-native sort/filter, limit=maxDisplay) — fast.
-// With query: uses AllSongs (full paginated fetch) then filters/sorts in Go so
-// all songs in the library are searched, not just the first page.
-func (h *Handler) fetchRows(ctx context.Context, query, sort, dir, filter string) (songsRowsData, error) {
+// No query, no filter: uses ListSongs (Navidrome-native pagination) — fast.
+// With query or filter: uses AllSongs then filters/sorts in Go so all songs
+// are searched, then slices the requested page.
+func (h *Handler) fetchRows(ctx context.Context, query string, start int, sort, dir, filter string) (songsRowsData, error) {
 	var songs []navidrome.Song
-	var err error
+	var hasMore bool
 
-	if query != "" {
-		// Fetch the entire library so search covers all songs.
-		songs, err = h.nd.AllSongs(ctx)
+	if query != "" || filter != "all" {
+		// Need the full library for client-side search/filter.
+		all, err := h.nd.AllSongs(ctx)
 		if err != nil {
 			return songsRowsData{}, err
 		}
-		// Apply hasLyrics filter in Go (AllSongs doesn't filter).
-		songs = filterByLyrics(songs, filter)
-		// Sort in Go (AllSongs always returns title ASC).
+		songs = filterByLyrics(all, filter)
 		sortSongs(songs, sort, dir)
-		// Text search across title, artist, album.
-		q := strings.ToLower(query)
-		filtered := songs[:0]
-		for _, s := range songs {
-			if strings.Contains(strings.ToLower(s.Title), q) ||
-				strings.Contains(strings.ToLower(s.Artist), q) ||
-				strings.Contains(strings.ToLower(s.Album), q) {
-				filtered = append(filtered, s)
+		if query != "" {
+			q := strings.ToLower(query)
+			filtered := songs[:0]
+			for _, s := range songs {
+				if strings.Contains(strings.ToLower(s.Title), q) ||
+					strings.Contains(strings.ToLower(s.Artist), q) ||
+					strings.Contains(strings.ToLower(s.Album), q) {
+					filtered = append(filtered, s)
+				}
 			}
+			songs = filtered
 		}
-		songs = filtered
-	} else if filter != "all" {
-		// has/missing filter: Navidrome doesn't support server-side lyrics filter,
-		// so fetch all songs and filter in Go.
-		songs, err = h.nd.AllSongs(ctx)
-		if err != nil {
-			return songsRowsData{}, err
+		// Paginate Go-side.
+		total := len(songs)
+		if start >= total {
+			songs = nil
+		} else {
+			end := start + pageSize
+			hasMore = end < total
+			if end > total {
+				end = total
+			}
+			songs = songs[start:end]
 		}
-		songs = filterByLyrics(songs, filter)
-		sortSongs(songs, sort, dir)
 	} else {
-		// No search, no filter: let Navidrome sort and return only what we display.
+		// No search, no filter: delegate pagination to Navidrome.
+		var err error
 		songs, err = h.nd.ListSongs(ctx, navidrome.SongQuery{
 			Sort:  sort,
 			Dir:   dir,
-			Limit: maxDisplay,
+			Start: start,
+			Limit: pageSize + 1, // fetch one extra to detect more pages
 		})
 		if err != nil {
 			return songsRowsData{}, err
 		}
-	}
-
-	total := len(songs)
-	truncated := total > maxDisplay
-	if truncated {
-		songs = songs[:maxDisplay]
+		hasMore = len(songs) > pageSize
+		if hasMore {
+			songs = songs[:pageSize]
+		}
 	}
 
 	return songsRowsData{
@@ -138,8 +142,8 @@ func (h *Handler) fetchRows(ctx context.Context, query, sort, dir, filter string
 		Sort:      sort,
 		Dir:       dir,
 		Filter:    filter,
-		Total:     total,
-		Truncated: truncated,
+		HasMore:   hasMore,
+		NextStart: start + pageSize,
 	}, nil
 }
 
