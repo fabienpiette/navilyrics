@@ -142,8 +142,12 @@ a { color:inherit; }
     transition:border-color .22s;
     display:flex;
     flex-direction:column;
+    position:sticky;
+    top:0;
+    align-self:start;
+    max-height:100vh;
 }
-.preview-panel.open { border-left-color:var(--border); }
+.preview-panel.open { border-left-color:var(--border); overflow-y:auto; }
 .preview-inner {
     width:360px;
     display:flex;
