@@ -218,11 +218,7 @@ a { color:inherit; }
 .preview-details .pd-path {
     font-family:ui-monospace,monospace;
     font-size:.65rem;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
-    direction:rtl; /* shows filename end, not root */
-    text-align:left;
+    word-break:break-all;
 }
 .preview-actions {
     display:flex;
