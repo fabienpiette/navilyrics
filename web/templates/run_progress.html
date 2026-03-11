@@ -14,7 +14,7 @@
      hx-ext="sse"
      sse-connect="/run/{{.RunID}}/events"
      id="run-log">
-    <div sse-swap="result" hx-swap="beforeend" id="run-log-inner"></div>
+    <div sse-swap="result" hx-swap="afterbegin" id="run-log-inner"></div>
     <div sse-swap="done" hx-swap="none" id="run-done-trigger"></div>
 </div>
 
