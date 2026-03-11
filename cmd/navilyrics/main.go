@@ -140,6 +140,7 @@ func runServer(args []string) error {
 	r.Use(middleware.Recoverer)
 
 	r.Get("/", h.Dashboard)
+	r.Get("/dashboard/stats", h.DashboardStats)
 	r.Get("/songs", h.Songs)
 	r.Get("/songs/rows", h.SongsRows)
 	r.Get("/songs/{id}/lrc", h.SongLRC)

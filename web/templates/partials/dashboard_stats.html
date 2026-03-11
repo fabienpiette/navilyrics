@@ -1,14 +1,3 @@
-{{define "title"}}navilyrics — dashboard{{end}}
-
-{{define "content"}}
-<div style="display:flex;align-items:baseline;gap:1rem;margin-bottom:1rem">
-  <h2 style="margin-bottom:0">Library overview</h2>
-  <button class="tool-btn"
-          hx-get="/dashboard/stats"
-          hx-target="#stats-grid"
-          hx-swap="outerHTML"
-          title="Refresh stats">↻ refresh</button>
-</div>
 <div class="stats-grid" id="stats-grid">
     <div class="stat-cell">
         <div class="stat-num">{{if .Ready}}{{.Total}}{{else}}—{{end}}</div>
@@ -27,8 +16,3 @@
         <div class="stat-label">coverage</div>
     </div>
 </div>
-<div class="form-actions">
-    <a href="/songs" class="btn secondary">Browse songs</a>
-    <a href="/songs?filter=missing" class="btn">Find missing lyrics</a>
-</div>
-{{end}}

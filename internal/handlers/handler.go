@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"html/template"
 	"io/fs"
+	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -20,11 +22,18 @@ type Handler struct {
 	partials map[string]*template.Template
 	version  string
 	runs     *RunStore
+	stats    *statsCache
 }
 
-// New creates a Handler.
+// New creates a Handler and kicks off a background stats refresh.
 func New(nd *navidrome.Client, proc *lyrics.Processor, tmpls, partials map[string]*template.Template, version string) *Handler {
-	return &Handler{nd: nd, proc: proc, tmpls: tmpls, partials: partials, version: version, runs: newRunStore()}
+	h := &Handler{nd: nd, proc: proc, tmpls: tmpls, partials: partials, version: version, runs: newRunStore(), stats: &statsCache{}}
+	go func() {
+		if err := h.stats.refresh(context.Background(), nd); err != nil {
+			log.Printf("stats: boot refresh failed: %v", err)
+		}
+	}()
+	return h
 }
 
 // render executes a full page template (enters via base.html).
