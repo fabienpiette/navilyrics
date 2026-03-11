@@ -48,6 +48,32 @@ func (h *Handler) SongLRC(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
+// SongMeta returns selected song metadata as JSON for the preview panel.
+// GET /songs/{id}/meta
+func (h *Handler) SongMeta(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	song, err := h.nd.GetSong(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, navidrome.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, html.EscapeString(err.Error()), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"year":        song.Year,
+		"genre":       song.Genre,
+		"albumArtist": song.AlbumArtist,
+		"trackNumber": song.TrackNumber,
+		"duration":    song.Duration,
+		"bitRate":     song.BitRate,
+		"suffix":      song.Suffix,
+		"path":        song.Path,
+	})
+}
+
 // SongFetch force-fetches lyrics for a single song via the processor and returns
 // a JSON result. HasLyrics is cleared so already-tagged songs are re-processed.
 // POST /songs/{id}/fetch

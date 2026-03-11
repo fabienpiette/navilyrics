@@ -204,6 +204,29 @@ a { color:inherit; }
     color:var(--fg);
 }
 .preview-lrc.placeholder { color:var(--muted); font-style:italic; font-family:inherit; font-size:.8rem; }
+.preview-details {
+    padding:.375rem .75rem;
+    border-bottom:1px solid var(--border);
+    display:grid;
+    grid-template-columns:max-content 1fr;
+    gap:.1rem .625rem;
+    font-size:.68rem;
+    flex-shrink:0;
+}
+.preview-details dt { color:var(--muted); white-space:nowrap; }
+.preview-details dd { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.preview-details .pd-path {
+    grid-column:1/-1;
+    color:var(--muted);
+    font-family:ui-monospace,monospace;
+    font-size:.65rem;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    direction:rtl; /* shows filename end, not root */
+    text-align:left;
+    margin-top:.15rem;
+}
 .preview-actions {
     display:flex;
     align-items:center;

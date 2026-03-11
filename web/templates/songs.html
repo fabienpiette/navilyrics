@@ -74,6 +74,7 @@
         </div>
         <button class="preview-close" onclick="closePreview()" title="Close preview">×</button>
       </div>
+      <dl class="preview-details" id="preview-details" style="display:none"></dl>
       <div class="preview-actions">
         <div class="action-group">
           <button class="action-btn" id="btn-fetch" onclick="showSearchForm()">Find lyrics</button>
@@ -137,7 +138,48 @@ function previewSong(id, row) {
   document.getElementById('search-artist').value = row.dataset.artist || '';
   document.getElementById('search-album').value  = row.dataset.album  || '';
 
+  _loadMeta(id);
   _loadLRC(id);
+}
+
+function _loadMeta(id) {
+  var dl = document.getElementById('preview-details');
+  dl.style.display = 'none';
+  while (dl.firstChild) dl.removeChild(dl.firstChild);
+  fetch('/songs/' + encodeURIComponent(id) + '/meta')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(d) {
+      if (!d) return;
+      var rows = [];
+      if (d.year)        rows.push(['Year',    String(d.year)]);
+      if (d.genre)       rows.push(['Genre',   d.genre]);
+      if (d.trackNumber) rows.push(['Track',   String(d.trackNumber)]);
+      if (d.bitRate)     rows.push(['Bitrate', d.bitRate + ' kbps']);
+      if (d.suffix)      rows.push(['Format',  d.suffix.toUpperCase()]);
+      if (d.duration)    rows.push(['Length',  _fmtDuration(d.duration)]);
+      if (!rows.length && !d.path) return;
+      rows.forEach(function(r) {
+        var dt = document.createElement('dt');
+        dt.textContent = r[0];
+        var dd = document.createElement('dd');
+        dd.textContent = r[1];
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+      });
+      if (d.path) {
+        var div = document.createElement('div');
+        div.className = 'pd-path';
+        div.textContent = d.path;
+        dl.appendChild(div);
+      }
+      dl.style.display = 'grid';
+    });
+}
+
+function _fmtDuration(secs) {
+  var m = Math.floor(secs / 60);
+  var s = Math.floor(secs % 60);
+  return m + ':' + (s < 10 ? '0' : '') + s;
 }
 
 function _loadLRC(id) {
@@ -276,6 +318,7 @@ function closePreview() {
   _exitEditMode();
   document.getElementById('preview-panel').classList.remove('open');
   document.getElementById('songs-layout').classList.remove('preview-open');
+  document.getElementById('preview-details').style.display = 'none';
   if (_selectedRow) { _selectedRow.classList.remove('selected'); _selectedRow = null; }
   _currentSongId = null;
 }
