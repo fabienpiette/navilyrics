@@ -29,16 +29,14 @@ func WriteLRCFile(audioPath, synced string) error {
 	return nil
 }
 
-// writeLyrics writes both the .lrc sidecar and the embedded audio tags.
-// On any error it rolls back (removes .lrc if just written) and returns the error.
+// writeLyrics writes the .lrc sidecar and attempts to embed lyrics into audio tags.
+// Tag embedding failure is a soft error: the .lrc sidecar is kept and a warning is
+// logged, because the sidecar alone is sufficient for Navidrome to read lyrics.
 func writeLyrics(audioPath, plain, synced string) error {
-	lrcWritten := false
-
 	if synced != "" {
 		if err := WriteLRCFile(audioPath, synced); err != nil {
 			return err
 		}
-		lrcWritten = true
 	}
 
 	tgr, err := tagger.ForFile(audioPath)
@@ -48,10 +46,8 @@ func writeLyrics(audioPath, plain, synced string) error {
 	}
 
 	if err := tgr.WriteLyrics(audioPath, plain, synced); err != nil {
-		if lrcWritten {
-			os.Remove(lrcPathFor(audioPath))
-		}
-		return fmt.Errorf("embed tags %s: %w", audioPath, err)
+		log.Printf("tags: skip embed (write error) %s: %v", audioPath, err)
+		return nil
 	}
 	log.Printf("tags: embedded %s", audioPath)
 	return nil
