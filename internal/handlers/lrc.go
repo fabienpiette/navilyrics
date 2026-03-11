@@ -64,6 +64,23 @@ func (h *Handler) SongFetch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Optional body may override title/artist/album for manual searches.
+	var overrides struct {
+		Title  string `json:"title"`
+		Artist string `json:"artist"`
+		Album  string `json:"album"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&overrides)
+	if overrides.Title != "" {
+		song.Title = overrides.Title
+	}
+	if overrides.Artist != "" {
+		song.Artist = overrides.Artist
+	}
+	if overrides.Album != "" {
+		song.Album = overrides.Album
+	}
+
 	song.HasLyrics = false // bypass "skipped" guard — always attempt fetch
 	result := h.proc.ProcessSong(r.Context(), song)
 

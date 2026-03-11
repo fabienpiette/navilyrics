@@ -76,12 +76,24 @@
       </div>
       <div class="preview-actions">
         <div class="action-group">
-          <button class="action-btn" id="btn-fetch" onclick="fetchLyrics()">Find lyrics</button>
+          <button class="action-btn" id="btn-fetch" onclick="showSearchForm()">Find lyrics</button>
           <button class="action-btn" id="btn-edit"   onclick="editLRC()">Edit</button>
           <button class="action-btn" id="btn-save"   onclick="saveLRC()"   style="display:none">Save</button>
           <button class="action-btn" id="btn-cancel" onclick="cancelEdit()" style="display:none">Cancel</button>
         </div>
         <span class="preview-status" id="preview-status"></span>
+      </div>
+      <div class="preview-search" id="preview-search" style="display:none">
+        <input type="text"  id="search-title"  placeholder="Title">
+        <input type="text"  id="search-artist" placeholder="Artist">
+        <input type="text"  id="search-album"  placeholder="Album">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div class="action-group">
+            <button class="action-btn" id="btn-do-search" onclick="doFetchLyrics()">Search</button>
+            <button class="action-btn" onclick="hideSearchForm()">Cancel</button>
+          </div>
+          <span class="preview-status" id="search-status"></span>
+        </div>
       </div>
       <pre class="preview-lrc placeholder" id="preview-lrc">Select a song to preview its lyrics.</pre>
     </div>
@@ -120,6 +132,10 @@ function previewSong(id, row) {
   document.getElementById('preview-panel').classList.add('open');
   document.getElementById('songs-layout').classList.add('preview-open');
   document.getElementById('preview-status').textContent = '';
+  hideSearchForm();
+  document.getElementById('search-title').value  = row.dataset.title  || '';
+  document.getElementById('search-artist').value = row.dataset.artist || '';
+  document.getElementById('search-album').value  = row.dataset.album  || '';
 
   _loadLRC(id);
 }
@@ -149,20 +165,42 @@ function _loadLRC(id) {
     });
 }
 
-function fetchLyrics() {
+function showSearchForm() {
   if (!_currentSongId) return;
-  var btn = document.getElementById('btn-fetch');
-  var status = document.getElementById('preview-status');
+  document.getElementById('preview-search').style.display = 'flex';
+  document.getElementById('search-status').textContent = '';
+  document.getElementById('search-title').focus();
+}
+
+function hideSearchForm() {
+  document.getElementById('preview-search').style.display = 'none';
+  document.getElementById('search-status').textContent = '';
+}
+
+function doFetchLyrics() {
+  if (!_currentSongId) return;
+  var btn = document.getElementById('btn-do-search');
+  var status = document.getElementById('search-status');
   btn.disabled = true;
   btn.textContent = 'Searching\u2026';
   status.textContent = '';
-  fetch('/songs/' + encodeURIComponent(_currentSongId) + '/fetch', {method: 'POST'})
+  var body = JSON.stringify({
+    title:  document.getElementById('search-title').value,
+    artist: document.getElementById('search-artist').value,
+    album:  document.getElementById('search-album').value
+  });
+  fetch('/songs/' + encodeURIComponent(_currentSongId) + '/fetch', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: body
+  })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       btn.disabled = false;
-      btn.textContent = 'Find lyrics';
+      btn.textContent = 'Search';
       if (d.status === 'found' || d.status === 'dry_run') {
-        status.textContent = d.status === 'found' ? 'Found.' : 'Found (dry run).';
+        hideSearchForm();
+        document.getElementById('preview-status').textContent = d.status === 'found' ? 'Found.' : 'Found (dry run).';
         _loadLRC(_currentSongId);
         if (_selectedRow && d.status === 'found') {
           var badge = _selectedRow.querySelector('.badge');
@@ -174,7 +212,7 @@ function fetchLyrics() {
     })
     .catch(function() {
       btn.disabled = false;
-      btn.textContent = 'Find lyrics';
+      btn.textContent = 'Search';
       status.textContent = 'Request failed.';
     });
 }
