@@ -53,6 +53,21 @@ func writeLyrics(audioPath, plain, synced string) error {
 	return nil
 }
 
+// WriteRawLRC atomically writes content to a known lrcPath.
+// Unlike WriteLRCFile, the caller provides the final path directly.
+func WriteRawLRC(lrcPath, content string) error {
+	tmp := lrcPath + ".tmp"
+	if err := os.WriteFile(tmp, []byte(content), 0644); err != nil {
+		return fmt.Errorf("write lrc tmp: %w", err)
+	}
+	if err := os.Rename(tmp, lrcPath); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("rename lrc: %w", err)
+	}
+	log.Printf("lrc: wrote %s", lrcPath)
+	return nil
+}
+
 // lrcPathFor returns the .lrc sidecar path for a given audio file path.
 func lrcPathFor(audioPath string) string {
 	ext := filepath.Ext(audioPath)

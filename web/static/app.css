@@ -202,6 +202,25 @@ a { color:inherit; }
     color:var(--fg);
 }
 .preview-lrc.placeholder { color:var(--muted); font-style:italic; font-family:inherit; font-size:.8rem; }
+.preview-actions {
+    display:flex;
+    align-items:center;
+    gap:.5rem;
+    padding:.375rem .75rem;
+    border-bottom:1px solid var(--border);
+    flex-shrink:0;
+}
+.preview-status { font-size:.7rem; color:var(--muted); margin-left:.25rem; }
+.preview-lrc.preview-edit {
+    resize:vertical;
+    width:100%;
+    border:none;
+    outline:none;
+    background:var(--bg);
+    color:var(--fg);
+    min-height:240px;
+    box-sizing:border-box;
+}
 
 /* Responsive */
 @media (max-width:768px) {

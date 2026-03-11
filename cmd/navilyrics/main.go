@@ -144,6 +144,8 @@ func runServer(args []string) error {
 	r.Get("/songs", h.Songs)
 	r.Get("/songs/rows", h.SongsRows)
 	r.Get("/songs/{id}/lrc", h.SongLRC)
+	r.Post("/songs/{id}/fetch", h.SongFetch)
+	r.Put("/songs/{id}/lrc", h.SongLRCSave)
 	r.Post("/run", h.RunBatch)
 	r.Post("/run/filtered", h.RunFiltered)
 	r.Get("/run/{id}/events", h.RunEvents)
