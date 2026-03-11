@@ -2,6 +2,8 @@ package lyrics_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/user/navilyrics/internal/lyrics"
@@ -59,5 +61,57 @@ func TestProcessor_notFound(t *testing.T) {
 	result := p.ProcessSong(context.Background(), song)
 	if result.Status != "not_found" {
 		t.Errorf("want not_found, got %q", result.Status)
+	}
+}
+
+type stubFetcher struct {
+	ok   bool
+	resp lrclib.Response
+}
+
+func (s *stubFetcher) Get(_ context.Context, _, _, _ string, _ float64) (lrclib.Response, bool, error) {
+	return s.resp, s.ok, nil
+}
+
+func (s *stubFetcher) Search(_ context.Context, _, _ string, _ float64) (lrclib.Response, bool, error) {
+	return s.resp, s.ok, nil
+}
+
+func TestProcessor_fallbackUsedWhenLrclibMisses(t *testing.T) {
+	primary := &stubFetcher{ok: false}
+	fallback := &stubFetcher{ok: true, resp: lrclib.Response{PlainLyrics: "fallback", SyncedLyrics: "[00:01.00] fallback"}}
+
+	proc := lyrics.NewProcessor(nil, primary, []string{"/music"}, true)
+	proc.SetFallback(fallback)
+
+	song := navidrome.Song{Title: "T", Artist: "A", Album: "L", Duration: 200}
+	r := proc.ProcessSong(context.Background(), song)
+	if r.Status != "dry_run" {
+		t.Fatalf("want dry_run, got %s", r.Status)
+	}
+	if r.Source != "netease" {
+		t.Errorf("want source=netease, got %q", r.Source)
+	}
+}
+
+func TestProcessor_ResolveLRCPath(t *testing.T) {
+	dir := t.TempDir()
+	audioPath := filepath.Join(dir, "song.mp3")
+	if err := os.WriteFile(audioPath, []byte{}, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	proc := lyrics.NewProcessor(nil, &stubFetcher{}, []string{dir}, false)
+	got := proc.ResolveLRCPath("song.mp3")
+	want := filepath.Join(dir, "song.lrc")
+	if got != want {
+		t.Errorf("want %q, got %q", want, got)
+	}
+}
+
+func TestProcessor_ResolveLRCPath_notFound(t *testing.T) {
+	proc := lyrics.NewProcessor(nil, &stubFetcher{}, []string{"/nonexistent"}, false)
+	if got := proc.ResolveLRCPath("song.mp3"); got != "" {
+		t.Errorf("want empty, got %q", got)
 	}
 }

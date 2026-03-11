@@ -84,6 +84,26 @@ func (c *Client) ListSongs(ctx context.Context, q SongQuery) ([]Song, error) {
 	return songs, nil
 }
 
+// GetSong fetches a single song by ID.
+func (c *Client) GetSong(ctx context.Context, id string) (Song, error) {
+	resp, err := c.Do(ctx, http.MethodGet, "/api/song/"+id, nil)
+	if err != nil {
+		return Song{}, fmt.Errorf("get song: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return Song{}, fmt.Errorf("song %s: %w", id, ErrNotFound)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return Song{}, fmt.Errorf("get song: status %d", resp.StatusCode)
+	}
+	var s Song
+	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+		return Song{}, fmt.Errorf("get song decode: %w", err)
+	}
+	return s, nil
+}
+
 // TriggerScan requests a Navidrome library rescan.
 func (c *Client) TriggerScan(ctx context.Context) error {
 	resp, err := c.Do(ctx, http.MethodGet, "/api/scanner/trigger", nil)

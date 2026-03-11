@@ -19,11 +19,12 @@ type Handler struct {
 	tmpls    map[string]*template.Template
 	partials map[string]*template.Template
 	version  string
+	runs     *RunStore
 }
 
 // New creates a Handler.
 func New(nd *navidrome.Client, proc *lyrics.Processor, tmpls, partials map[string]*template.Template, version string) *Handler {
-	return &Handler{nd: nd, proc: proc, tmpls: tmpls, partials: partials, version: version}
+	return &Handler{nd: nd, proc: proc, tmpls: tmpls, partials: partials, version: version, runs: newRunStore()}
 }
 
 // render executes a full page template (enters via base.html).

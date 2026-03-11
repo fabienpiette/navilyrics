@@ -2,8 +2,12 @@ package navidrome
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 )
+
+// ErrNotFound is returned by GetSong when the requested song does not exist.
+var ErrNotFound = errors.New("not found")
 
 // Song represents a Navidrome track.
 type Song struct {

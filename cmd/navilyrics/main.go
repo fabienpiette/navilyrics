@@ -18,6 +18,7 @@ import (
 	"github.com/user/navilyrics/internal/lyrics"
 	"github.com/user/navilyrics/pkg/lrclib"
 	"github.com/user/navilyrics/pkg/navidrome"
+	"github.com/user/navilyrics/pkg/netease"
 	"github.com/user/navilyrics/pkg/tagger"
 	"github.com/user/navilyrics/web"
 )
@@ -61,6 +62,8 @@ func runCLI(args []string) error {
 	nd := navidrome.New(ndURL, ndUser, ndPass)
 	lrc := lrclib.New("https://lrclib.net")
 	proc := lyrics.NewProcessor(nd, lrc, strings.Split(musicDir, ":"), *dryRun)
+	ne := netease.New("")
+	proc.SetFallback(ne)
 
 	var found, notFound, skipped, errCount atomic.Int64
 	progress := func(r lyrics.Result) {
@@ -113,6 +116,8 @@ func runServer(args []string) error {
 	nd := navidrome.New(ndURL, ndUser, ndPass)
 	lrc := lrclib.New("https://lrclib.net")
 	proc := lyrics.NewProcessor(nd, lrc, strings.Split(musicDir, ":"), dryRun)
+	ne := netease.New("")
+	proc.SetFallback(ne)
 
 	tmpls, err := handlers.ParseTemplates(web.FS)
 	if err != nil {
@@ -137,8 +142,10 @@ func runServer(args []string) error {
 	r.Get("/", h.Dashboard)
 	r.Get("/songs", h.Songs)
 	r.Get("/songs/rows", h.SongsRows)
+	r.Get("/songs/{id}/lrc", h.SongLRC)
 	r.Post("/run", h.RunBatch)
 	r.Post("/run/filtered", h.RunFiltered)
+	r.Get("/run/{id}/events", h.RunEvents)
 	r.Get("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 

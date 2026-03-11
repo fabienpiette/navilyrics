@@ -26,7 +26,7 @@ type Result struct {
 	Artist       string
 	PlainLyrics  string
 	SyncedLyrics string
-	Source       string // "lrclib" | ""
+	Source       string // "lrclib" | "netease" | ""
 	Status       string // "found" | "not_found" | "skipped" | "error" | "dry_run"
 	Err          string
 }
@@ -35,9 +35,13 @@ type Result struct {
 type Processor struct {
 	nd        *navidrome.Client // may be nil in tests
 	lrc       LRCFetcher
+	fallback  LRCFetcher // optional; nil = disabled
 	musicDirs []string
 	dryRun    bool
 }
+
+// SetFallback sets an optional secondary lyrics source tried after lrc fails.
+func (p *Processor) SetFallback(f LRCFetcher) { p.fallback = f }
 
 // NewProcessor creates a Processor. nd may be nil when using ProcessSong directly.
 // musicDirs is a list of base directories to search for audio files; the first
@@ -56,6 +60,16 @@ func (p *Processor) resolveAudioPath(relPath string) string {
 		}
 	}
 	return ""
+}
+
+// ResolveLRCPath returns the full .lrc sidecar path for a relative song path,
+// or "" if the audio file is not found in any music dir.
+func (p *Processor) ResolveLRCPath(relPath string) string {
+	audioPath := p.resolveAudioPath(relPath)
+	if audioPath == "" {
+		return ""
+	}
+	return lrcPathFor(audioPath)
 }
 
 // ProcessSong fetches and (unless dry-run) writes lyrics for a single song.
@@ -85,6 +99,16 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 		}
 	}
 
+	if !ok && p.fallback != nil {
+		resp, ok, err = p.fallback.Search(ctx, song.Artist, song.Title, song.Duration)
+		if err != nil {
+			log.Printf("netease search %q: %v", song.Title, err)
+		}
+		if ok {
+			r.Source = "netease"
+		}
+	}
+
 	if !ok {
 		log.Printf("[not_found] %s — %s", song.Artist, song.Title)
 		r.Status = "not_found"
@@ -93,7 +117,9 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 
 	r.PlainLyrics = resp.PlainLyrics
 	r.SyncedLyrics = resp.SyncedLyrics
-	r.Source = "lrclib"
+	if r.Source == "" {
+		r.Source = "lrclib"
+	}
 
 	if p.dryRun {
 		log.Printf("[dry_run]   %s — %s", song.Artist, song.Title)

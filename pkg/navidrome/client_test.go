@@ -105,3 +105,45 @@ func TestListSongs(t *testing.T) {
 		t.Fatalf("want 1 song, got %d", len(songs))
 	}
 }
+
+func TestGetSong(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/login":
+			json.NewEncoder(w).Encode(map[string]string{"token": "tok"})
+		case "/api/song/abc123":
+			w.Write([]byte(`{"id":"abc123","title":"T","artist":"A","album":"L","duration":200}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := navidrome.New(srv.URL, "u", "p")
+	_ = c.Authenticate()
+	song, err := c.GetSong(context.Background(), "abc123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if song.ID != "abc123" {
+		t.Errorf("want id=abc123, got %q", song.ID)
+	}
+}
+
+func TestGetSong_notFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/login":
+			json.NewEncoder(w).Encode(map[string]any{"token": "tok"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := navidrome.New(srv.URL, "u", "p")
+	_, err := c.GetSong(context.Background(), "missing")
+	if err == nil {
+		t.Fatal("want error for missing song, got nil")
+	}
+}
