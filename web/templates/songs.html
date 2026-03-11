@@ -9,7 +9,7 @@
   <div class="toolbar">
     <input id="search-input" type="search" name="q" value="{{.Query}}"
            placeholder="Search title, artist, album…"
-           class="toolbar-search" style="width:260px"
+           class="toolbar-search" style="flex:1;min-width:160px"
            hx-get="/songs/rows"
            hx-trigger="input delay:300ms, search"
            hx-target="#songs-tbody"
@@ -25,7 +25,7 @@
          href="#" onclick="setFilter('has');return false">Has lyrics</a>
     </div>
 
-    <div style="margin-left:auto;display:flex;gap:.5rem">
+    <div style="display:flex;gap:.5rem;flex-shrink:0">
       <form method="post" action="/run/filtered" id="run-filtered-form"
             onsubmit="this.querySelector('[name=q]').value=document.getElementById('search-input').value;this.querySelector('[name=filter]').value=document.getElementById('filter-input').value;">
         <input type="hidden" name="q" value="">
@@ -39,35 +39,52 @@
   </div>
 </div>
 
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th class="sortable" onclick="sortBy('title')">
-          Title{{if eq .Sort "title"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
-        </th>
-        <th class="sortable" onclick="sortBy('artist')">
-          Artist{{if eq .Sort "artist"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
-        </th>
-        <th class="sortable" onclick="sortBy('album')">
-          Album{{if eq .Sort "album"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
-        </th>
-        <th>Lyrics</th>
-      </tr>
-    </thead>
-    <tbody id="songs-tbody">
-      {{template "songs_rows_body" .}}
-    </tbody>
-  </table>
-</div>
+<div class="songs-layout" id="songs-layout">
+  <div class="songs-pane">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" onclick="sortBy('title')">
+              Title{{if eq .Sort "title"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
+            </th>
+            <th class="sortable" onclick="sortBy('artist')">
+              Artist{{if eq .Sort "artist"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
+            </th>
+            <th class="sortable" onclick="sortBy('album')">
+              Album{{if eq .Sort "album"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
+            </th>
+            <th>Lyrics</th>
+          </tr>
+        </thead>
+        <tbody id="songs-tbody">
+          {{template "songs_rows_body" .}}
+        </tbody>
+      </table>
+    </div>
 
-{{if .Truncated}}
-<p class="muted" style="font-size:.75rem;margin-top:.5rem">
-  Showing first {{len .Songs}} of {{.Total}} results — refine your search.
-</p>
-{{else if .Songs}}
-<p class="muted" style="font-size:.75rem;margin-top:.5rem">{{len .Songs}} songs</p>
-{{end}}
+    {{if .Truncated}}
+    <p class="muted" style="font-size:.75rem;margin-top:.5rem">
+      Showing first {{len .Songs}} of {{.Total}} results — refine your search.
+    </p>
+    {{else if .Songs}}
+    <p class="muted" style="font-size:.75rem;margin-top:.5rem">{{len .Songs}} songs</p>
+    {{end}}
+  </div>
+
+  <aside class="preview-panel" id="preview-panel" aria-label="Lyrics preview">
+    <div class="preview-inner">
+      <div class="preview-header">
+        <div class="preview-meta">
+          <span class="preview-title" id="preview-title"></span>
+          <span class="preview-artist" id="preview-artist"></span>
+        </div>
+        <button class="preview-close" onclick="closePreview()" title="Close preview">×</button>
+      </div>
+      <pre class="preview-lrc placeholder" id="preview-lrc">Select a song to preview its lyrics.</pre>
+    </div>
+  </aside>
+</div>
 
 <script>
 function sortBy(col) {
@@ -84,5 +101,55 @@ function setFilter(val) {
   });
   htmx.trigger(document.getElementById('search-input'), 'search');
 }
+
+var _selectedRow = null;
+
+function previewSong(id, row) {
+  if (_selectedRow) _selectedRow.classList.remove('selected');
+  row.classList.add('selected');
+  _selectedRow = row;
+
+  document.getElementById('preview-title').textContent = row.dataset.title;
+  document.getElementById('preview-artist').textContent = row.dataset.artist;
+  document.getElementById('preview-panel').classList.add('open');
+  document.getElementById('songs-layout').classList.add('preview-open');
+
+  var lrc = document.getElementById('preview-lrc');
+  lrc.className = 'preview-lrc';
+  lrc.textContent = 'Loading\u2026';
+
+  fetch('/songs/' + encodeURIComponent(id) + '/lrc')
+    .then(function(r) {
+      if (r.status === 404) {
+        lrc.className = 'preview-lrc placeholder';
+        lrc.textContent = 'No .lrc file yet.';
+        return null;
+      }
+      if (!r.ok) {
+        lrc.className = 'preview-lrc placeholder';
+        lrc.textContent = 'Error loading lyrics.';
+        return null;
+      }
+      return r.text();
+    })
+    .then(function(t) { if (t != null) lrc.textContent = t; })
+    .catch(function() {
+      lrc.className = 'preview-lrc placeholder';
+      lrc.textContent = 'Error loading lyrics.';
+    });
+}
+
+function closePreview() {
+  document.getElementById('preview-panel').classList.remove('open');
+  document.getElementById('songs-layout').classList.remove('preview-open');
+  if (_selectedRow) { _selectedRow.classList.remove('selected'); _selectedRow = null; }
+}
+
+// If HTMX replaces the table rows and the selected row is gone, close the panel
+document.addEventListener('htmx:afterSettle', function(e) {
+  if (e.target && e.target.id === 'songs-tbody') {
+    if (_selectedRow && !document.body.contains(_selectedRow)) closePreview();
+  }
+});
 </script>
 {{end}}

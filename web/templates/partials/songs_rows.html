@@ -1,6 +1,9 @@
 {{define "songs_rows_body"}}
 {{range .Songs}}
-<tr>
+<tr class="song-row"
+    onclick="previewSong('{{.ID}}', this)"
+    data-title="{{.Title}}"
+    data-artist="{{.Artist}}">
   <td>{{.Title}}</td>
   <td class="muted">{{.Artist}}</td>
   <td class="muted">{{.Album}}</td>
