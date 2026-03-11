@@ -170,9 +170,7 @@ a { color:inherit; }
 .preview-title {
     font-size:.875rem;
     display:block;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    word-break:break-word;
 }
 .preview-artist {
     font-size:.7rem;
