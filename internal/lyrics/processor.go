@@ -2,6 +2,7 @@ package lyrics
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -72,18 +73,14 @@ func (p *Processor) ResolveLRCPath(relPath string) string {
 	return lrcPathFor(audioPath)
 }
 
-// ProcessSong fetches and (unless dry-run) writes lyrics for a single song.
-func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result {
+// FetchLyricsOnly searches external providers for lyrics without writing anything.
+// Returns a Result with status "found" or "not_found" and the lyrics if found.
+func (p *Processor) FetchLyricsOnly(ctx context.Context, song navidrome.Song) Result {
 	r := Result{
 		SongID:   song.ID,
 		SongPath: song.Path,
 		Title:    song.Title,
 		Artist:   song.Artist,
-	}
-
-	if song.HasLyrics {
-		r.Status = "skipped"
-		return r
 	}
 
 	// Strategy 1: exact get
@@ -98,7 +95,7 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 			log.Printf("lrclib search %q: %v", song.Title, err)
 		}
 	}
-
+	// Strategy 3: fallback provider
 	if !ok && p.fallback != nil {
 		resp, ok, err = p.fallback.Search(ctx, song.Artist, song.Title, song.Duration)
 		if err != nil {
@@ -120,6 +117,29 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 	if r.Source == "" {
 		r.Source = "lrclib"
 	}
+	r.Status = "found"
+	return r
+}
+
+// SaveLyrics writes lyrics to disk for a song (lrc sidecar + tag embedding).
+func (p *Processor) SaveLyrics(song navidrome.Song, plain, synced string) error {
+	audioPath := p.resolveAudioPath(song.Path)
+	if audioPath == "" {
+		return fmt.Errorf("file not found in any music dir")
+	}
+	return writeLyrics(audioPath, plain, synced)
+}
+
+// ProcessSong fetches and (unless dry-run) writes lyrics for a single song.
+func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result {
+	if song.HasLyrics {
+		return Result{SongID: song.ID, SongPath: song.Path, Title: song.Title, Artist: song.Artist, Status: "skipped"}
+	}
+
+	r := p.FetchLyricsOnly(ctx, song)
+	if r.Status != "found" {
+		return r
+	}
 
 	if p.dryRun {
 		log.Printf("[dry_run]   %s — %s", song.Artist, song.Title)
@@ -127,14 +147,7 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 		return r
 	}
 
-	audioPath := p.resolveAudioPath(song.Path)
-	if audioPath == "" {
-		log.Printf("[error]     %s — %s: file not found in any music dir", song.Artist, song.Title)
-		r.Status = "error"
-		r.Err = "file not found in any music dir"
-		return r
-	}
-	if err := writeLyrics(audioPath, r.PlainLyrics, r.SyncedLyrics); err != nil {
+	if err := p.SaveLyrics(song, r.PlainLyrics, r.SyncedLyrics); err != nil {
 		log.Printf("[error]     %s — %s: %v", song.Artist, song.Title, err)
 		r.Status = "error"
 		r.Err = err.Error()
@@ -142,7 +155,6 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 	}
 
 	log.Printf("[found]     %s — %s", song.Artist, song.Title)
-	r.Status = "found"
 	return r
 }
 

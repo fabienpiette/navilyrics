@@ -74,8 +74,9 @@ func (h *Handler) SongMeta(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SongFetch force-fetches lyrics for a single song via the processor and returns
-// a JSON result. HasLyrics is cleared so already-tagged songs are re-processed.
+// SongFetch searches external providers for lyrics and returns what was found
+// without writing anything to disk. The client previews the result and may
+// confirm by calling SongSave.
 // POST /songs/{id}/fetch
 func (h *Handler) SongFetch(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
@@ -107,14 +108,48 @@ func (h *Handler) SongFetch(w http.ResponseWriter, r *http.Request) {
 		song.Album = overrides.Album
 	}
 
-	song.HasLyrics = false // bypass "skipped" guard — always attempt fetch
-	result := h.proc.ProcessSong(r.Context(), song)
+	result := h.proc.FetchLyricsOnly(r.Context(), song)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status": result.Status,
-		"err":    result.Err,
+		"status":       result.Status,
+		"syncedLyrics": result.SyncedLyrics,
+		"plainLyrics":  result.PlainLyrics,
+		"source":       result.Source,
+		"err":          result.Err,
 	})
+}
+
+// SongSave writes confirmed lyrics to disk (lrc sidecar + tag embedding).
+// POST /songs/{id}/save
+func (h *Handler) SongSave(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	song, err := h.nd.GetSong(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, navidrome.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, html.EscapeString(err.Error()), http.StatusBadGateway)
+		return
+	}
+
+	var body struct {
+		Plain  string `json:"plain"`
+		Synced string `json:"synced"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.proc.SaveLyrics(song, body.Plain, body.Synced); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // SongLRCSave writes a manually-edited LRC body to the sidecar file.

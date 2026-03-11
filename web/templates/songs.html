@@ -77,10 +77,12 @@
       <dl class="preview-details" id="preview-details" style="display:none"></dl>
       <div class="preview-actions">
         <div class="action-group">
-          <button class="action-btn" id="btn-fetch" onclick="showSearchForm()">Find lyrics</button>
-          <button class="action-btn" id="btn-edit"   onclick="editLRC()">Edit</button>
-          <button class="action-btn" id="btn-save"   onclick="saveLRC()"   style="display:none">Save</button>
-          <button class="action-btn" id="btn-cancel" onclick="cancelEdit()" style="display:none">Cancel</button>
+          <button class="action-btn" id="btn-fetch"   onclick="showSearchForm()">Find lyrics</button>
+          <button class="action-btn" id="btn-edit"    onclick="editLRC()">Edit</button>
+          <button class="action-btn" id="btn-save"    onclick="saveLRC()"            style="display:none">Save</button>
+          <button class="action-btn" id="btn-cancel"  onclick="cancelEdit()"         style="display:none">Cancel</button>
+          <button class="action-btn" id="btn-confirm" onclick="saveFetchedLyrics()"  style="display:none">Save lyrics</button>
+          <button class="action-btn" id="btn-discard" onclick="discardFetchedLyrics()" style="display:none">Discard</button>
         </div>
         <span class="preview-status" id="preview-status"></span>
       </div>
@@ -120,6 +122,7 @@ function setFilter(val) {
 var _selectedRow = null;
 var _currentSongId = null;
 var _editOriginal = null;
+var _pendingLyrics = null; // {plain, synced} found but not yet saved
 
 function previewSong(id, row) {
   _exitEditMode(); // discard any unsaved edit when switching songs
@@ -134,6 +137,7 @@ function previewSong(id, row) {
   document.getElementById('songs-layout').classList.add('preview-open');
   document.getElementById('preview-status').textContent = '';
   hideSearchForm();
+  _clearPending();
   document.getElementById('search-title').value  = row.dataset.title  || '';
   document.getElementById('search-artist').value = row.dataset.artist || '';
   document.getElementById('search-album').value  = row.dataset.album  || '';
@@ -243,14 +247,17 @@ function doFetchLyrics() {
     .then(function(d) {
       btn.disabled = false;
       btn.textContent = 'Search';
-      if (d.status === 'found' || d.status === 'dry_run') {
+      if (d.status === 'found') {
         hideSearchForm();
-        document.getElementById('preview-status').textContent = d.status === 'found' ? 'Found.' : 'Found (dry run).';
-        _loadLRC(_currentSongId);
-        if (_selectedRow && d.status === 'found') {
-          var badge = _selectedRow.querySelector('.badge');
-          if (badge) { badge.className = 'badge badge-found'; badge.textContent = 'yes'; }
-        }
+        _pendingLyrics = {plain: d.plainLyrics || '', synced: d.syncedLyrics || ''};
+        // Show found lyrics in preview (not yet saved)
+        var lrc = document.getElementById('preview-lrc');
+        lrc.className = 'preview-lrc';
+        lrc.textContent = d.syncedLyrics || d.plainLyrics || '';
+        // Show confirm/discard buttons
+        document.getElementById('btn-confirm').style.display = '';
+        document.getElementById('btn-discard').style.display = '';
+        document.getElementById('preview-status').textContent = 'Found via ' + (d.source || 'provider') + ' — save or discard.';
       } else {
         status.textContent = d.status === 'not_found' ? 'Not found.' : ('Error: ' + (d.err || d.status));
       }
@@ -260,6 +267,44 @@ function doFetchLyrics() {
       btn.textContent = 'Search';
       status.textContent = 'Request failed.';
     });
+}
+
+function saveFetchedLyrics() {
+  if (!_currentSongId || !_pendingLyrics) return;
+  var btn = document.getElementById('btn-confirm');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+  fetch('/songs/' + encodeURIComponent(_currentSongId) + '/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(_pendingLyrics)
+  })
+    .then(function(r) {
+      if (!r.ok) throw new Error('Save failed (' + r.status + ')');
+      _clearPending();
+      document.getElementById('preview-status').textContent = 'Saved.';
+      if (_selectedRow) {
+        var badge = _selectedRow.querySelector('.badge');
+        if (badge) { badge.className = 'badge badge-found'; badge.textContent = 'yes'; }
+      }
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Save lyrics';
+      document.getElementById('preview-status').textContent = e.message;
+    });
+}
+
+function discardFetchedLyrics() {
+  _clearPending();
+  document.getElementById('preview-status').textContent = '';
+  _loadLRC(_currentSongId); // reload whatever was on disk before
+}
+
+function _clearPending() {
+  _pendingLyrics = null;
+  document.getElementById('btn-confirm').style.display = 'none';
+  document.getElementById('btn-discard').style.display = 'none';
 }
 
 function editLRC() {
