@@ -167,10 +167,13 @@ function _loadMeta(id) {
         dl.appendChild(dd);
       });
       if (d.path) {
-        var div = document.createElement('div');
-        div.className = 'pd-path';
-        div.textContent = d.path;
-        dl.appendChild(div);
+        var dt = document.createElement('dt');
+        dt.textContent = 'Path';
+        var dd = document.createElement('dd');
+        dd.className = 'pd-path';
+        dd.textContent = d.path;
+        dl.appendChild(dt);
+        dl.appendChild(dd);
       }
       dl.style.display = 'grid';
     });

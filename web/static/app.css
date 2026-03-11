@@ -216,8 +216,6 @@ a { color:inherit; }
 .preview-details dt { color:var(--muted); white-space:nowrap; }
 .preview-details dd { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .preview-details .pd-path {
-    grid-column:1/-1;
-    color:var(--muted);
     font-family:ui-monospace,monospace;
     font-size:.65rem;
     overflow:hidden;
@@ -225,7 +223,6 @@ a { color:inherit; }
     white-space:nowrap;
     direction:rtl; /* shows filename end, not root */
     text-align:left;
-    margin-top:.15rem;
 }
 .preview-actions {
     display:flex;
