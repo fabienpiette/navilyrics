@@ -4,7 +4,7 @@ VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 
 LDFLAGS     := -ldflags="-s -w -X main.version=$(VERSION)"
 
 .PHONY: build test test-coverage clean run-server run-cli fmt vet \
-        build-all docker-build up down logs
+        build-all docker-build up down restart logs
 
 ## Build the binary
 build:
@@ -59,6 +59,10 @@ up:
 ## Stop the stack
 down:
 	docker compose down
+
+## Rebuild and restart the stack
+restart:
+	VERSION=$(VERSION) docker compose up -d --build
 
 ## Tail Docker Compose logs
 logs:
