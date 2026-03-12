@@ -18,11 +18,11 @@
 
     <div class="filter-pills">
       <a class="filter-pill {{if eq .Filter "all"}}active{{end}}"
-         href="#" onclick="setFilter('all');return false">All</a>
+         href="#" onclick="setFilter('all');return false" title="Show all songs">All</a>
       <a class="filter-pill {{if eq .Filter "missing"}}active{{end}}"
-         href="#" onclick="setFilter('missing');return false">Missing</a>
+         href="#" onclick="setFilter('missing');return false" title="Show songs without lyrics">Missing</a>
       <a class="filter-pill {{if eq .Filter "has"}}active{{end}}"
-         href="#" onclick="setFilter('has');return false">Has lyrics</a>
+         href="#" onclick="setFilter('has');return false" title="Show songs that already have lyrics">Has lyrics</a>
     </div>
 
     <div style="display:flex;gap:.5rem;flex-shrink:0">
@@ -30,10 +30,10 @@
             onsubmit="this.querySelector('[name=q]').value=document.getElementById('search-input').value;this.querySelector('[name=filter]').value=document.getElementById('filter-input').value;">
         <input type="hidden" name="q" value="">
         <input type="hidden" name="filter" value="">
-        <button type="submit" class="btn secondary small">Run for results</button>
+        <button type="submit" class="btn secondary small" title="Fetch lyrics for songs matching the current search and filter">Run for results</button>
       </form>
       <form method="post" action="/run">
-        <button type="submit" class="btn small">Run all</button>
+        <button type="submit" class="btn small" title="Fetch lyrics for every song in the library">Run all</button>
       </form>
     </div>
   </div>
@@ -45,13 +45,13 @@
       <table>
         <thead>
           <tr>
-            <th class="sortable" onclick="sortBy('title')">
+            <th class="sortable" onclick="sortBy('title')" title="Sort by title">
               Title{{if eq .Sort "title"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
             </th>
-            <th class="sortable" onclick="sortBy('artist')">
+            <th class="sortable" onclick="sortBy('artist')" title="Sort by artist">
               Artist{{if eq .Sort "artist"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
             </th>
-            <th class="sortable" onclick="sortBy('album')">
+            <th class="sortable" onclick="sortBy('album')" title="Sort by album">
               Album{{if eq .Sort "album"}} {{if eq .Dir "ASC"}}▲{{else}}▼{{end}}{{end}}
             </th>
             <th>Lyrics</th>
@@ -77,23 +77,23 @@
       <dl class="preview-details" id="preview-details" style="display:none"></dl>
       <div class="preview-actions">
         <div class="action-group">
-          <button class="action-btn" id="btn-fetch"   onclick="showSearchForm()">Find lyrics</button>
-          <button class="action-btn" id="btn-edit"    onclick="editLRC()">Edit</button>
-          <button class="action-btn" id="btn-save"    onclick="saveLRC()"            style="display:none">Save</button>
-          <button class="action-btn" id="btn-cancel"  onclick="cancelEdit()"         style="display:none">Cancel</button>
-          <button class="action-btn" id="btn-confirm" onclick="saveFetchedLyrics()"  style="display:none">Save lyrics</button>
-          <button class="action-btn" id="btn-discard" onclick="discardFetchedLyrics()" style="display:none">Discard</button>
+          <button class="action-btn" id="btn-fetch"   onclick="showSearchForm()" title="Search lyrics providers for this song">Find lyrics</button>
+          <button class="action-btn" id="btn-edit"    onclick="editLRC()" title="Manually edit the LRC file">Edit</button>
+          <button class="action-btn" id="btn-save"    onclick="saveLRC()"              style="display:none" title="Save your edits to disk">Save</button>
+          <button class="action-btn" id="btn-cancel"  onclick="cancelEdit()"           style="display:none" title="Discard edits and restore the original">Cancel</button>
+          <button class="action-btn" id="btn-confirm" onclick="saveFetchedLyrics()"    style="display:none" title="Write found lyrics to disk">Save lyrics</button>
+          <button class="action-btn" id="btn-discard" onclick="discardFetchedLyrics()" style="display:none" title="Discard found lyrics without saving">Discard</button>
         </div>
         <span class="preview-status" id="preview-status"></span>
       </div>
       <div class="preview-search" id="preview-search" style="display:none">
-        <input type="text"  id="search-title"  placeholder="Title">
-        <input type="text"  id="search-artist" placeholder="Artist">
-        <input type="text"  id="search-album"  placeholder="Album">
+        <input type="text"  id="search-title"  placeholder="Title"  title="Override the song title used for the lyrics search">
+        <input type="text"  id="search-artist" placeholder="Artist" title="Override the artist name used for the lyrics search">
+        <input type="text"  id="search-album"  placeholder="Album"  title="Override the album name used for the lyrics search">
         <div style="display:flex;align-items:center;gap:.5rem">
           <div class="action-group">
-            <button class="action-btn" id="btn-do-search" onclick="doFetchLyrics()">Search</button>
-            <button class="action-btn" onclick="hideSearchForm()">Cancel</button>
+            <button class="action-btn" id="btn-do-search" onclick="doFetchLyrics()" title="Search providers with these values">Search</button>
+            <button class="action-btn" onclick="hideSearchForm()" title="Close the search form">Cancel</button>
           </div>
           <span class="preview-status" id="search-status"></span>
         </div>

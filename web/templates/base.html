@@ -13,8 +13,8 @@
     <header>
         <h1>navilyrics</h1>
         <nav class="tab-bar">
-            <a class="tab {{if eq .ActiveTab "dashboard"}}active{{end}}" href="/">Dashboard</a>
-            <a class="tab {{if eq .ActiveTab "songs"}}active{{end}}" href="/songs">Songs</a>
+            <a class="tab {{if eq .ActiveTab "dashboard"}}active{{end}}" href="/" title="Library overview and stats">Dashboard</a>
+            <a class="tab {{if eq .ActiveTab "songs"}}active{{end}}" href="/songs" title="Browse and manage song lyrics">Songs</a>
         </nav>
         <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">&#9680;</button>
     </header>
