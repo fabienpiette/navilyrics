@@ -27,6 +27,7 @@ type Result struct {
 	Artist       string
 	PlainLyrics  string
 	SyncedLyrics string
+	Instrumental bool   // true when the provider confirmed no lyrics (instrumental track)
 	Source       string // "lrclib" | "netease" | ""
 	Status       string // "found" | "not_found" | "skipped" | "error" | "dry_run"
 	Err          string
@@ -114,6 +115,7 @@ func (p *Processor) FetchLyricsOnly(ctx context.Context, song navidrome.Song) Re
 
 	r.PlainLyrics = resp.PlainLyrics
 	r.SyncedLyrics = resp.SyncedLyrics
+	r.Instrumental = resp.Instrumental
 	if r.Source == "" {
 		r.Source = "lrclib"
 	}

@@ -111,10 +111,11 @@ func (h *Handler) SongFetch(w http.ResponseWriter, r *http.Request) {
 	result := h.proc.FetchLyricsOnly(r.Context(), song)
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status":       result.Status,
 		"syncedLyrics": result.SyncedLyrics,
 		"plainLyrics":  result.PlainLyrics,
+		"instrumental": result.Instrumental,
 		"source":       result.Source,
 		"err":          result.Err,
 	})

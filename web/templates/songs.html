@@ -256,8 +256,13 @@ function doFetchLyrics() {
         var old = document.getElementById('preview-lrc');
         var pre = document.createElement('pre');
         pre.id = 'preview-lrc';
-        pre.className = 'preview-lrc';
-        pre.textContent = text;
+        if (text) {
+          pre.className = 'preview-lrc';
+          pre.textContent = text;
+        } else {
+          pre.className = 'preview-lrc placeholder';
+          pre.textContent = d.instrumental ? 'Instrumental — no lyrics available.' : 'Found but no lyrics text returned.';
+        }
         old.parentNode.replaceChild(pre, old);
         // Show confirm/discard buttons
         document.getElementById('btn-confirm').style.display = '';
