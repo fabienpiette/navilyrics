@@ -37,6 +37,60 @@ func (t *flacTagger) ReadLyrics(path string) (plain, synced string, err error) {
 }
 
 func (t *flacTagger) WriteLyrics(path, plain, synced string) error {
+	return t.updateVorbisComment(path, func(tags [][2]string) [][2]string {
+		filtered := tags[:0]
+		for _, tag := range tags {
+			upper := strings.ToUpper(tag[0])
+			if upper != "LYRICS" && upper != "SYNCEDLYRICS" {
+				filtered = append(filtered, tag)
+			}
+		}
+		if plain != "" {
+			filtered = append(filtered, [2]string{"LYRICS", plain})
+		}
+		if synced != "" {
+			filtered = append(filtered, [2]string{"SYNCEDLYRICS", synced})
+		}
+		return filtered
+	})
+}
+
+func (t *flacTagger) IsInstrumental(path string) (bool, error) {
+	f, err := flac.ParseFile(path)
+	if err != nil {
+		return false, fmt.Errorf("flac parse %s: %w", path, err)
+	}
+	defer f.Close()
+
+	for _, block := range f.Blocks {
+		vc, ok := block.Body.(*meta.VorbisComment)
+		if !ok {
+			continue
+		}
+		for _, tag := range vc.Tags {
+			if strings.ToUpper(tag[0]) == "NAVILYRICS_INSTRUMENTAL" {
+				return tag[1] == "1", nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func (t *flacTagger) MarkInstrumental(path string) error {
+	return t.updateVorbisComment(path, func(tags [][2]string) [][2]string {
+		filtered := tags[:0]
+		for _, tag := range tags {
+			if strings.ToUpper(tag[0]) != "NAVILYRICS_INSTRUMENTAL" {
+				filtered = append(filtered, tag)
+			}
+		}
+		return append(filtered, [2]string{"NAVILYRICS_INSTRUMENTAL", "1"})
+	})
+}
+
+// updateVorbisComment opens path, passes the current Vorbis comment tags to
+// update (which returns the replacement slice), re-encodes the file atomically.
+func (t *flacTagger) updateVorbisComment(path string, update func([][2]string) [][2]string) error {
 	src, err := flac.Open(path)
 	if err != nil {
 		return fmt.Errorf("flac open %s: %w", path, err)
@@ -68,21 +122,7 @@ func (t *flacTagger) WriteLyrics(path, plain, synced string) error {
 		}
 	}
 
-	// Remove existing LYRICS / SYNCEDLYRICS tags, then add new ones.
-	filtered := vc.Tags[:0]
-	for _, tag := range vc.Tags {
-		upper := strings.ToUpper(tag[0])
-		if upper != "LYRICS" && upper != "SYNCEDLYRICS" {
-			filtered = append(filtered, tag)
-		}
-	}
-	if plain != "" {
-		filtered = append(filtered, [2]string{"LYRICS", plain})
-	}
-	if synced != "" {
-		filtered = append(filtered, [2]string{"SYNCEDLYRICS", synced})
-	}
-	vc.Tags = filtered
+	vc.Tags = update(vc.Tags)
 
 	// encodeBlock guards: if block.Length == 0 it writes an empty block and
 	// skips the body entirely. encodeVorbisComment recomputes the real length,

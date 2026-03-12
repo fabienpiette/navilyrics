@@ -53,6 +53,37 @@ func writeLyrics(audioPath, plain, synced string) error {
 	return nil
 }
 
+// markInstrumental writes the NAVILYRICS_INSTRUMENTAL tag to the audio file.
+// Unsupported formats are silently skipped (soft error like writeLyrics).
+func markInstrumental(audioPath string) error {
+	tgr, err := tagger.ForFile(audioPath)
+	if err != nil {
+		log.Printf("tags: skip instrumental mark (unsupported format) %s", audioPath)
+		return nil
+	}
+	if err := tgr.MarkInstrumental(audioPath); err != nil {
+		log.Printf("tags: skip instrumental mark (write error) %s: %v", audioPath, err)
+		return nil
+	}
+	log.Printf("tags: marked instrumental %s", audioPath)
+	return nil
+}
+
+// isInstrumental reads the NAVILYRICS_INSTRUMENTAL tag from the audio file.
+// Returns false for unsupported formats or read errors (soft failure).
+func isInstrumental(audioPath string) bool {
+	tgr, err := tagger.ForFile(audioPath)
+	if err != nil {
+		return false
+	}
+	ok, err := tgr.IsInstrumental(audioPath)
+	if err != nil {
+		log.Printf("tags: read instrumental %s: %v", audioPath, err)
+		return false
+	}
+	return ok
+}
+
 // WriteRawLRC atomically writes content to a known lrcPath.
 // Unlike WriteLRCFile, the caller provides the final path directly.
 func WriteRawLRC(lrcPath, content string) error {

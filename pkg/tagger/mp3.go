@@ -83,6 +83,51 @@ func (t *mp3Tagger) WriteLyrics(path, plain, synced string) error {
 	return nil
 }
 
+func (t *mp3Tagger) IsInstrumental(path string) (bool, error) {
+	tag, err := id3.Open(path, id3.Options{Parse: true})
+	if err != nil {
+		return false, fmt.Errorf("mp3 open %s: %w", path, err)
+	}
+	defer tag.Close()
+
+	for _, f := range tag.GetFrames("TXXX") {
+		if tf, ok := f.(id3.UserDefinedTextFrame); ok {
+			if strings.EqualFold(tf.Description, "NAVILYRICS_INSTRUMENTAL") {
+				return tf.Value == "1", nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func (t *mp3Tagger) MarkInstrumental(path string) error {
+	tag, err := id3.Open(path, id3.Options{Parse: true})
+	if err != nil {
+		return fmt.Errorf("mp3 open %s: %w", path, err)
+	}
+	defer tag.Close()
+
+	existing := tag.GetFrames("TXXX")
+	tag.DeleteFrames("TXXX")
+	for _, f := range existing {
+		if tf, ok := f.(id3.UserDefinedTextFrame); ok {
+			if !strings.EqualFold(tf.Description, "NAVILYRICS_INSTRUMENTAL") {
+				tag.AddFrame("TXXX", tf)
+			}
+		}
+	}
+	tag.AddFrame("TXXX", id3.UserDefinedTextFrame{
+		Encoding:    id3.EncodingUTF8,
+		Description: "NAVILYRICS_INSTRUMENTAL",
+		Value:       "1",
+	})
+
+	if err := tag.Save(); err != nil {
+		return fmt.Errorf("mp3 save %s: %w", path, err)
+	}
+	return nil
+}
+
 // BackfillSYLT adds a SYLT frame to an MP3 that already has TXXX:SYNCEDLYRICS
 // but no SYLT. Returns true if the file was modified, false if it was skipped
 // (already has SYLT, or has no TXXX:SYNCEDLYRICS to read from).

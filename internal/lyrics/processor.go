@@ -134,12 +134,33 @@ func (p *Processor) SaveLyrics(song navidrome.Song, plain, synced string) error 
 
 // ProcessSong fetches and (unless dry-run) writes lyrics for a single song.
 func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result {
+	base := Result{SongID: song.ID, SongPath: song.Path, Title: song.Title, Artist: song.Artist}
+
 	if song.HasLyrics {
 		return Result{SongID: song.ID, SongPath: song.Path, Title: song.Title, Artist: song.Artist, Status: "skipped"}
 	}
 
+	// Skip tracks already marked instrumental from a previous run.
+	audioPath := p.resolveAudioPath(song.Path)
+	if audioPath != "" && isInstrumental(audioPath) {
+		log.Printf("[skipped]   %s — %s (instrumental)", song.Artist, song.Title)
+		base.Status = "skipped"
+		base.Instrumental = true
+		return base
+	}
+
 	r := p.FetchLyricsOnly(ctx, song)
 	if r.Status != "found" {
+		return r
+	}
+
+	// Persist instrumental status so future batch runs skip this track.
+	if r.Instrumental {
+		if !p.dryRun && audioPath != "" {
+			_ = markInstrumental(audioPath)
+		}
+		log.Printf("[instrumental] %s — %s", song.Artist, song.Title)
+		r.Status = "instrumental"
 		return r
 	}
 

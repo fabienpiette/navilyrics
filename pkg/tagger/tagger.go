@@ -15,6 +15,14 @@ type Tagger interface {
 	// WriteLyrics writes the plain and synced lyrics to the file.
 	// An empty string for either value leaves that tag unchanged.
 	WriteLyrics(path, plain, synced string) error
+
+	// IsInstrumental reports whether the file has been marked instrumental
+	// by a previous navilyrics run.
+	IsInstrumental(path string) (bool, error)
+
+	// MarkInstrumental writes an instrumental marker to the file's tags so
+	// future batch runs can skip it without a network lookup.
+	MarkInstrumental(path string) error
 }
 
 // ForFile returns the appropriate Tagger for the given file based on extension.
