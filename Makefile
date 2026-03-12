@@ -60,9 +60,9 @@ up:
 down:
 	docker compose down
 
-## Rebuild and restart the stack
+## Hard stop then rebuild and start the stack
 restart:
-	VERSION=$(VERSION) docker compose up -d --build
+	docker compose down && VERSION=$(VERSION) docker compose up -d --build
 
 ## Tail Docker Compose logs
 logs:
