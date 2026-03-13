@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/user/navilyrics/internal/lyrics"
@@ -20,12 +21,15 @@ type stubProvider struct {
 	name   string
 	result lyrics.ProviderResult
 	ok     bool
+	mu     sync.Mutex
 	calls  int
 }
 
 func (s *stubProvider) Name() string { return s.name }
 func (s *stubProvider) Search(_ context.Context, _, _, _ string, _ float64) (lyrics.ProviderResult, bool, error) {
+	s.mu.Lock()
 	s.calls++
+	s.mu.Unlock()
 	return s.result, s.ok, nil
 }
 

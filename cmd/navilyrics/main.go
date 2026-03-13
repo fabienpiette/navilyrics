@@ -85,22 +85,25 @@ func runCLI(args []string) error {
 	providers := buildProviders()
 	proc := lyrics.NewProcessor(nd, providers, strings.Split(musicDir, ":"), *dryRun)
 
-	var found, notFound, skipped, errCount atomic.Int64
+	var found, notFound, skipped, instrumental, errCount atomic.Int64
 	progress := func(r lyrics.Result) {
 		switch r.Status {
 		case "found":
 			found.Add(1)
-			log.Printf("found    %s — %s", r.Artist, r.Title)
+			log.Printf("found        %s — %s", r.Artist, r.Title)
 		case "dry_run":
 			found.Add(1)
-			log.Printf("dry_run  %s — %s", r.Artist, r.Title)
+			log.Printf("dry_run      %s — %s", r.Artist, r.Title)
 		case "not_found":
 			notFound.Add(1)
 		case "skipped":
 			skipped.Add(1)
+		case "instrumental":
+			instrumental.Add(1)
+			log.Printf("instrumental %s — %s", r.Artist, r.Title)
 		case "error":
 			errCount.Add(1)
-			log.Printf("error    %s — %s: %s", r.Artist, r.Title, r.Err)
+			log.Printf("error        %s — %s: %s", r.Artist, r.Title, r.Err)
 		}
 	}
 
@@ -115,8 +118,8 @@ func runCLI(args []string) error {
 		}
 	}
 
-	log.Printf("done: found=%d not_found=%d skipped=%d errors=%d",
-		found.Load(), notFound.Load(), skipped.Load(), errCount.Load())
+	log.Printf("done: found=%d not_found=%d skipped=%d instrumental=%d errors=%d",
+		found.Load(), notFound.Load(), skipped.Load(), instrumental.Load(), errCount.Load())
 	return nil
 }
 
