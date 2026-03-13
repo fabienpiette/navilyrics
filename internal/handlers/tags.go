@@ -34,9 +34,13 @@ func (h *Handler) SongTagsSave(w http.ResponseWriter, r *http.Request) {
 		Title       string `json:"title"`
 		Artist      string `json:"artist"`
 		Album       string `json:"album"`
+		AlbumArtist string `json:"albumArtist"`
 		Year        string `json:"year"`
 		TrackNumber string `json:"trackNumber"`
+		DiscNumber  string `json:"discNumber"`
 		Genre       string `json:"genre"`
+		Composer    string `json:"composer"`
+		Comment     string `json:"comment"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
@@ -53,9 +57,13 @@ func (h *Handler) SongTagsSave(w http.ResponseWriter, r *http.Request) {
 		Title:       body.Title,
 		Artist:      body.Artist,
 		Album:       body.Album,
+		AlbumArtist: body.AlbumArtist,
 		Year:        body.Year,
 		TrackNumber: body.TrackNumber,
+		DiscNumber:  body.DiscNumber,
 		Genre:       body.Genre,
+		Composer:    body.Composer,
+		Comment:     body.Comment,
 	}
 
 	if err := tagger.WriteMeta(audioPath, meta, false); err != nil {

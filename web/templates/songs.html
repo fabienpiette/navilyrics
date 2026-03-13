@@ -119,12 +119,16 @@
       </div>
       <div class="preview-tags" id="preview-tags" style="display:none">
         <div class="tags-grid">
-          <label>Title</label>  <input id="tag-title"  type="text">
-          <label>Artist</label> <input id="tag-artist" type="text">
-          <label>Album</label>  <input id="tag-album"  type="text">
-          <label>Year</label>   <input id="tag-year"   type="text" maxlength="4">
-          <label>Track</label>  <input id="tag-track"  type="text">
-          <label>Genre</label>  <input id="tag-genre"  type="text">
+          <label>Title</label>        <input id="tag-title"        type="text">
+          <label>Artist</label>       <input id="tag-artist"       type="text">
+          <label>Album</label>        <input id="tag-album"        type="text">
+          <label>Album artist</label> <input id="tag-albumartist"  type="text">
+          <label>Year</label>         <input id="tag-year"         type="text" maxlength="4">
+          <label>Track</label>        <input id="tag-track"        type="text">
+          <label>Disc</label>         <input id="tag-disc"         type="text">
+          <label>Genre</label>        <input id="tag-genre"        type="text">
+          <label>Composer</label>     <input id="tag-composer"     type="text">
+          <label>Comment</label>      <input id="tag-comment"      type="text">
         </div>
         <div style="display:flex;align-items:center;gap:.5rem;margin-top:.125rem">
           <div class="action-group">
@@ -435,12 +439,16 @@ function closePreview() {
 function showTagsForm() {
   if (!_currentSongId) return;
   hideSearchForm();
-  document.getElementById('tag-title').value  = _selectedRow ? (_selectedRow.dataset.title  || '') : '';
-  document.getElementById('tag-artist').value = _selectedRow ? (_selectedRow.dataset.artist || '') : '';
-  document.getElementById('tag-album').value  = _selectedRow ? (_selectedRow.dataset.album  || '') : '';
-  document.getElementById('tag-year').value   = _currentMeta ? (String(_currentMeta.year  || '')) : '';
-  document.getElementById('tag-track').value  = _currentMeta ? (String(_currentMeta.trackNumber || '')) : '';
-  document.getElementById('tag-genre').value  = _currentMeta ? (_currentMeta.genre || '') : '';
+  document.getElementById('tag-title').value       = _selectedRow ? (_selectedRow.dataset.title  || '') : '';
+  document.getElementById('tag-artist').value      = _selectedRow ? (_selectedRow.dataset.artist || '') : '';
+  document.getElementById('tag-album').value       = _selectedRow ? (_selectedRow.dataset.album  || '') : '';
+  document.getElementById('tag-albumartist').value = _currentMeta ? (_currentMeta.albumArtist || '') : '';
+  document.getElementById('tag-year').value        = _currentMeta ? (String(_currentMeta.year  || '')) : '';
+  document.getElementById('tag-track').value       = _currentMeta ? (String(_currentMeta.trackNumber || '')) : '';
+  document.getElementById('tag-disc').value        = '';
+  document.getElementById('tag-genre').value       = _currentMeta ? (_currentMeta.genre || '') : '';
+  document.getElementById('tag-composer').value    = '';
+  document.getElementById('tag-comment').value     = '';
   document.getElementById('tags-status').textContent = '';
   document.getElementById('preview-tags').style.display = 'flex';
   document.getElementById('tag-title').focus();
@@ -465,9 +473,13 @@ function saveTagsMeta() {
       title:       document.getElementById('tag-title').value,
       artist:      document.getElementById('tag-artist').value,
       album:       document.getElementById('tag-album').value,
+      albumArtist: document.getElementById('tag-albumartist').value,
       year:        document.getElementById('tag-year').value,
       trackNumber: document.getElementById('tag-track').value,
-      genre:       document.getElementById('tag-genre').value
+      discNumber:  document.getElementById('tag-disc').value,
+      genre:       document.getElementById('tag-genre').value,
+      composer:    document.getElementById('tag-composer').value,
+      comment:     document.getElementById('tag-comment').value
     })
   })
   .then(function(r) {
