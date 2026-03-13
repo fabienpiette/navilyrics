@@ -46,8 +46,21 @@ func writeLyrics(audioPath, plain, synced string) error {
 	}
 
 	if err := tgr.WriteLyrics(audioPath, plain, synced); err != nil {
-		log.Printf("tags: skip embed (write error) %s: %v", audioPath, err)
-		return nil
+		if tagger.IsBodyOverflow(err) {
+			if repErr := tagger.RepairID3(audioPath); repErr == nil {
+				log.Printf("tags: repaired malformed ID3v2 %s", audioPath)
+				if err = tgr.WriteLyrics(audioPath, plain, synced); err != nil {
+					log.Printf("tags: skip embed (write error after repair) %s: %v", audioPath, err)
+					return nil
+				}
+			} else {
+				log.Printf("tags: skip embed (repair unavailable) %s: %v", audioPath, repErr)
+				return nil
+			}
+		} else {
+			log.Printf("tags: skip embed (write error) %s: %v", audioPath, err)
+			return nil
+		}
 	}
 	log.Printf("tags: embedded %s", audioPath)
 	return nil
@@ -62,8 +75,21 @@ func markInstrumental(audioPath string) error {
 		return nil
 	}
 	if err := tgr.MarkInstrumental(audioPath); err != nil {
-		log.Printf("tags: skip instrumental mark (write error) %s: %v", audioPath, err)
-		return nil
+		if tagger.IsBodyOverflow(err) {
+			if repErr := tagger.RepairID3(audioPath); repErr == nil {
+				log.Printf("tags: repaired malformed ID3v2 %s", audioPath)
+				if err = tgr.MarkInstrumental(audioPath); err != nil {
+					log.Printf("tags: skip instrumental mark (write error after repair) %s: %v", audioPath, err)
+					return nil
+				}
+			} else {
+				log.Printf("tags: skip instrumental mark (repair unavailable) %s: %v", audioPath, repErr)
+				return nil
+			}
+		} else {
+			log.Printf("tags: skip instrumental mark (write error) %s: %v", audioPath, err)
+			return nil
+		}
 	}
 	log.Printf("tags: marked instrumental %s", audioPath)
 	return nil
