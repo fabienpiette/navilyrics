@@ -1,18 +1,28 @@
-<div class="stats-grid" id="stats-grid">
+<div id="stats-grid">
+  <div class="stats-grid">
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.Total}}{{else}}—{{end}}</div>
-        <div class="stat-label">total songs</div>
+      <div class="stat-num">{{if .Ready}}{{.Total}}{{else}}—{{end}}</div>
+      <div class="stat-label">total songs</div>
     </div>
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.HasLyrics}}{{else}}—{{end}}</div>
-        <div class="stat-label">with lyrics</div>
+      <div class="stat-num">{{if .Ready}}{{.HasLyrics}}{{else}}—{{end}}</div>
+      <div class="stat-label">with lyrics</div>
     </div>
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.Missing}}{{else}}—{{end}}</div>
-        <div class="stat-label">missing</div>
+      <div class="stat-num">{{if .Ready}}{{.Missing}}{{else}}—{{end}}</div>
+      <div class="stat-label">missing</div>
     </div>
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.Pct}}%{{else}}—{{end}}</div>
-        <div class="stat-label">coverage</div>
+      <div class="stat-num">{{if .Ready}}{{.Pct}}%{{else}}—{{end}}</div>
+      <div class="stat-label">coverage</div>
     </div>
+  </div>
+  <div class="cov-track">
+    <div class="cov-fill" style="width:{{if .Ready}}{{.Pct}}{{else}}0{{end}}%"></div>
+  </div>
+  {{if .Ready}}
+  <p class="stat-desc">
+    {{.HasLyrics}} songs have lyrics &mdash; <a href="/songs?filter=missing">{{.Missing}} still missing</a>.
+  </p>
+  {{end}}
 </div>

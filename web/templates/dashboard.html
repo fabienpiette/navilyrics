@@ -9,26 +9,38 @@
           hx-swap="outerHTML"
           title="Refresh stats">↻ refresh</button>
 </div>
-<div class="stats-grid" id="stats-grid">
+
+<div id="stats-grid">
+  <div class="stats-grid">
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.Total}}{{else}}—{{end}}</div>
-        <div class="stat-label">total songs</div>
+      <div class="stat-num">{{if .Ready}}{{.Total}}{{else}}—{{end}}</div>
+      <div class="stat-label">total songs</div>
     </div>
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.HasLyrics}}{{else}}—{{end}}</div>
-        <div class="stat-label">with lyrics</div>
+      <div class="stat-num">{{if .Ready}}{{.HasLyrics}}{{else}}—{{end}}</div>
+      <div class="stat-label">with lyrics</div>
     </div>
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.Missing}}{{else}}—{{end}}</div>
-        <div class="stat-label">missing</div>
+      <div class="stat-num">{{if .Ready}}{{.Missing}}{{else}}—{{end}}</div>
+      <div class="stat-label">missing</div>
     </div>
     <div class="stat-cell">
-        <div class="stat-num">{{if .Ready}}{{.Pct}}%{{else}}—{{end}}</div>
-        <div class="stat-label">coverage</div>
+      <div class="stat-num">{{if .Ready}}{{.Pct}}%{{else}}—{{end}}</div>
+      <div class="stat-label">coverage</div>
     </div>
+  </div>
+  <div class="cov-track">
+    <div class="cov-fill" style="width:{{if .Ready}}{{.Pct}}{{else}}0{{end}}%"></div>
+  </div>
+  {{if .Ready}}
+  <p class="stat-desc">
+    {{.HasLyrics}} songs have lyrics &mdash; <a href="/songs?filter=missing">{{.Missing}} still missing</a>.
+  </p>
+  {{end}}
 </div>
+
 <div class="form-actions">
-    <a href="/songs" class="btn secondary" title="Go to the songs list">Browse songs</a>
-    <a href="/songs?filter=missing" class="btn" title="Show only songs that are missing lyrics">Find missing lyrics</a>
+  <a href="/songs" class="btn secondary" title="Go to the songs list">Browse songs</a>
+  <a href="/songs?filter=missing" class="btn" title="Show only songs that are missing lyrics">Find missing lyrics</a>
 </div>
 {{end}}

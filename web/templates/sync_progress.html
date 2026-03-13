@@ -20,7 +20,7 @@
     <button class="btn secondary small" onclick="exportCSV('sync-log','sync_results.csv')">Export CSV</button>
 </div>
 
-<div class="run-log"
+<div class="run-log streaming"
      hx-ext="sse"
      sse-connect="/sync/{{.RunID}}/events"
      id="sync-log">
@@ -35,6 +35,17 @@
 </div>
 
 <script>
+function countUp(id, target) {
+    var el = document.getElementById(id);
+    if (!target) { el.textContent = 0; return; }
+    var n = 0, inc = Math.max(1, Math.ceil(target / 40));
+    var t = setInterval(function() {
+        n = Math.min(n + inc, target);
+        el.textContent = n;
+        if (n >= target) clearInterval(t);
+    }, 16);
+}
+
 function toggleFilter(pill, logId) {
     document.getElementById(logId).classList.toggle('hide-' + pill.dataset.status);
     pill.classList.toggle('active');
@@ -62,12 +73,13 @@ document.addEventListener('htmx:sseMessage', function(e) {
         document.getElementById('sync-toolbar').style.display = 'flex';
     }
     if (e.detail.type === 'done') {
+        document.getElementById('sync-log').classList.remove('streaming');
         try {
             var d = JSON.parse(e.detail.data);
-            document.getElementById('cnt-synced-lrc').textContent      = d.synced_lrc;
-            document.getElementById('cnt-synced-embedded').textContent = d.synced_embedded;
-            document.getElementById('cnt-skipped').textContent         = d.skipped;
-            document.getElementById('cnt-errors').textContent          = d.errors;
+            countUp('cnt-synced-lrc',      d.synced_lrc);
+            countUp('cnt-synced-embedded', d.synced_embedded);
+            countUp('cnt-skipped',         d.skipped);
+            countUp('cnt-errors',          d.errors);
         } catch(ex) {}
     }
 });

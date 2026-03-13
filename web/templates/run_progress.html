@@ -23,7 +23,7 @@
     <button class="btn secondary small" onclick="exportCSV('run-log','run_results.csv')">Export CSV</button>
 </div>
 
-<div class="run-log"
+<div class="run-log streaming"
      hx-ext="sse"
      sse-connect="/run/{{.RunID}}/events"
      id="run-log">
@@ -38,6 +38,17 @@
 </div>
 
 <script>
+function countUp(id, target) {
+    var el = document.getElementById(id);
+    if (!target) { el.textContent = 0; return; }
+    var n = 0, inc = Math.max(1, Math.ceil(target / 40));
+    var t = setInterval(function() {
+        n = Math.min(n + inc, target);
+        el.textContent = n;
+        if (n >= target) clearInterval(t);
+    }, 16);
+}
+
 function toggleFilter(pill, logId) {
     document.getElementById(logId).classList.toggle('hide-' + pill.dataset.status);
     pill.classList.toggle('active');
@@ -65,13 +76,14 @@ document.addEventListener('htmx:sseMessage', function(e) {
         document.getElementById('run-toolbar').style.display = 'flex';
     }
     if (e.detail.type === 'done') {
+        document.getElementById('run-log').classList.remove('streaming');
         try {
             var d = JSON.parse(e.detail.data);
-            document.getElementById('cnt-found').textContent        = d.found;
-            document.getElementById('cnt-notfound').textContent     = d.not_found;
-            document.getElementById('cnt-skipped').textContent      = d.skipped;
-            document.getElementById('cnt-instrumental').textContent = d.instrumental;
-            document.getElementById('cnt-errors').textContent       = d.errors;
+            countUp('cnt-found',        d.found);
+            countUp('cnt-notfound',     d.not_found);
+            countUp('cnt-skipped',      d.skipped);
+            countUp('cnt-instrumental', d.instrumental);
+            countUp('cnt-errors',       d.errors);
         } catch(ex) {}
     }
 });
