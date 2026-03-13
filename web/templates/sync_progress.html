@@ -21,10 +21,14 @@
 <div class="form-actions" style="margin-top:1rem">
     <a href="/" class="btn secondary" title="Back to library overview">Dashboard</a>
     <a href="/songs" class="btn secondary" title="Browse songs">Songs</a>
+    <button class="btn secondary" id="btn-scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="display:none" title="Scroll to top">↑ Top</button>
 </div>
 
 <script>
 document.addEventListener('htmx:sseMessage', function(e) {
+    if (e.detail.type === 'result') {
+        document.getElementById('btn-scroll-top').style.display = '';
+    }
     if (e.detail.type === 'done') {
         try {
             var d = JSON.parse(e.detail.data);
