@@ -35,8 +35,11 @@
       <form method="post" action="/run">
         <button type="submit" class="btn small" title="Fetch lyrics for every song in the library">Run all</button>
       </form>
-      <form method="post" action="/sync">
-        <button type="submit" class="btn secondary small" title="Fill gaps: write .lrc where only embedded tags exist, and embed tags where only .lrc exists">Sync gaps</button>
+      <form method="post" action="/sync" id="sync-form"
+            onsubmit="this.querySelector('[name=q]').value=document.getElementById('search-input').value;this.querySelector('[name=filter]').value=document.getElementById('filter-input').value;">
+        <input type="hidden" name="q" value="">
+        <input type="hidden" name="filter" value="">
+        <button type="submit" class="btn secondary small" title="Fill lyrics gaps for songs matching the current search and filter">Sync gaps</button>
       </form>
     </div>
   </div>

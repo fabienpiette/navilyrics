@@ -10,7 +10,8 @@ import (
 	"github.com/user/navilyrics/internal/lyrics"
 )
 
-// RunSync starts a background sync (gap-fill) run and returns a live-progress page.
+// RunSync starts a background sync (gap-fill) run for songs matching the
+// current search query and filter, then returns a live-progress page.
 // POST /sync
 func (h *Handler) RunSync(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -18,7 +19,15 @@ func (h *Handler) RunSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	songs, err := h.nd.AllSongs(r.Context())
+	query := r.FormValue("q")
+	filter := r.FormValue("filter")
+	switch filter {
+	case "missing", "has":
+	default:
+		filter = "all"
+	}
+
+	songs, err := h.allMatchingSongs(r.Context(), query, filter)
 	if err != nil {
 		http.Error(w, "navidrome: "+err.Error(), http.StatusBadGateway)
 		return
