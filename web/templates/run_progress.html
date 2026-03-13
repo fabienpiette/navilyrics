@@ -11,6 +11,18 @@
     <div class="stat-cell"><div class="stat-num" id="cnt-errors">—</div><div class="stat-label">errors</div></div>
 </div>
 
+<div class="run-log-toolbar" id="run-toolbar" style="display:none">
+    <div class="filter-pills">
+        <button class="filter-pill active" data-status="found"        onclick="toggleFilter(this,'run-log')">found</button>
+        <button class="filter-pill active" data-status="dry_run"      onclick="toggleFilter(this,'run-log')">dry run</button>
+        <button class="filter-pill active" data-status="not_found"    onclick="toggleFilter(this,'run-log')">not found</button>
+        <button class="filter-pill active" data-status="skipped"      onclick="toggleFilter(this,'run-log')">skipped</button>
+        <button class="filter-pill active" data-status="instrumental" onclick="toggleFilter(this,'run-log')">instrumental</button>
+        <button class="filter-pill active" data-status="error"        onclick="toggleFilter(this,'run-log')">errors</button>
+    </div>
+    <button class="btn secondary small" onclick="exportCSV('run-log','run_results.csv')">Export CSV</button>
+</div>
+
 <div class="run-log"
      hx-ext="sse"
      sse-connect="/run/{{.RunID}}/events"
@@ -26,9 +38,31 @@
 </div>
 
 <script>
+function toggleFilter(pill, logId) {
+    document.getElementById(logId).classList.toggle('hide-' + pill.dataset.status);
+    pill.classList.toggle('active');
+}
+
+function exportCSV(logId, filename) {
+    var rows = [['status','artist','title','source','error']];
+    document.getElementById(logId).querySelectorAll('.run-log-line[data-status]').forEach(function(el) {
+        rows.push([el.dataset.status||'', el.dataset.artist||'', el.dataset.title||'', el.dataset.source||'', el.dataset.err||'']);
+    });
+    var csv = rows.map(function(r) {
+        return r.map(function(v) { return '"' + v.replace(/"/g,'""') + '"'; }).join(',');
+    }).join('\n');
+    var a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
 document.addEventListener('htmx:sseMessage', function(e) {
     if (e.detail.type === 'result') {
         document.getElementById('btn-scroll-top').style.display = '';
+        document.getElementById('run-toolbar').style.display = 'flex';
     }
     if (e.detail.type === 'done') {
         try {

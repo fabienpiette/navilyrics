@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 
@@ -34,7 +35,9 @@ func RepairID3(path string) error {
 		}
 	}
 	// Second pass: fix synchsafe frame-size mismatch (soft — may not apply to all files).
-	_ = fixSynchsafeFrames(path)
+	if err := fixSynchsafeFrames(path); err != nil {
+		log.Printf("tags: synchsafe repair skipped %s: %v", path, err)
+	}
 	return nil
 }
 
