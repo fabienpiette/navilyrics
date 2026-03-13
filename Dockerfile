@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o navilyrics ./cmd/navil
 # mp3val is not in Alpine 3.20 repos — build from source.
 FROM alpine:3.20 AS mp3val-builder
 RUN apk add --no-cache g++ make curl
-RUN curl -sL "https://sourceforge.net/projects/mp3val/files/mp3val/mp3val-0.1.8/mp3val-0.1.8.tar.gz/download" \
+RUN curl -sL "https://downloads.sourceforge.net/project/mp3val/mp3val/mp3val-0.1.8/mp3val-0.1.8.tar.gz" \
         -o mp3val.tar.gz \
     && tar xzf mp3val.tar.gz \
     && make -C mp3val-0.1.8 -f Makefile.linux \
