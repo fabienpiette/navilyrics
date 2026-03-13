@@ -7,13 +7,34 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
-
-	"github.com/user/navilyrics/pkg/lrclib"
 )
 
 const defaultBaseURL = "https://music.163.com"
+
+// Response holds lyrics fetched from NetEase Cloud Music.
+type Response struct {
+	SyncedLyrics string // LRC format with timestamps
+	PlainLyrics  string // timestamps stripped
+}
+
+var lrcTagRe = regexp.MustCompile(`\[[^\]]*\]`)
+
+// stripTimestamps removes [mm:ss.xx] and metadata tags from LRC lines.
+func stripTimestamps(lrc string) string {
+	lines := strings.Split(lrc, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		stripped := lrcTagRe.ReplaceAllString(line, "")
+		stripped = strings.TrimSpace(stripped)
+		if stripped != "" {
+			out = append(out, stripped)
+		}
+	}
+	return strings.Join(out, "\n")
+}
 
 // Client is a NetEase Cloud Music API client.
 type Client struct {
@@ -32,30 +53,23 @@ func New(baseURL string) *Client {
 	}
 }
 
-// Get delegates to Search (NetEase has no exact-match endpoint).
-func (c *Client) Get(ctx context.Context, artist, title, album string, duration float64) (lrclib.Response, bool, error) {
-	return c.Search(ctx, artist, title, duration)
-}
-
 // Search searches for a track and returns the lyrics if a duration match is found.
-// Uses ±5 s tolerance (same as lrclib).
-func (c *Client) Search(ctx context.Context, artist, title string, targetDuration float64) (lrclib.Response, bool, error) {
-	id, dur, ok, err := c.searchSong(ctx, artist, title, targetDuration)
+// Uses ±5 s tolerance (same as lrclib). Returns (zero, false, nil) if not found.
+func (c *Client) Search(ctx context.Context, artist, title string, targetDuration float64) (Response, bool, error) {
+	id, _, ok, err := c.searchSong(ctx, artist, title, targetDuration)
 	if err != nil || !ok {
-		return lrclib.Response{}, false, err
+		return Response{}, false, err
 	}
 	synced, err := c.fetchLyrics(ctx, id)
 	if err != nil {
-		return lrclib.Response{}, false, err
+		return Response{}, false, err
 	}
 	if synced == "" {
-		return lrclib.Response{}, false, nil
+		return Response{}, false, nil
 	}
-	return lrclib.Response{
-		TrackName:    title,
-		ArtistName:   artist,
-		Duration:     dur,
+	return Response{
 		SyncedLyrics: synced,
+		PlainLyrics:  stripTimestamps(synced),
 	}, true, nil
 }
 

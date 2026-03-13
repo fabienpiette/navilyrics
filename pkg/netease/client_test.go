@@ -17,7 +17,7 @@ func TestSearch_found(t *testing.T) {
 			json.NewEncoder(w).Encode(map[string]any{
 				"result": map[string]any{
 					"songs": []map[string]any{
-						{"id": 123, "duration": 210000, "name": "Song", "artists": []map[string]any{{"name": "Artist"}}},
+						{"id": 123, "duration": 210000},
 					},
 				},
 			})
@@ -40,7 +40,10 @@ func TestSearch_found(t *testing.T) {
 		t.Fatal("want found, got not found")
 	}
 	if resp.SyncedLyrics != "[00:01.00] Hello world" {
-		t.Errorf("got SyncedLyrics %q", resp.SyncedLyrics)
+		t.Errorf("SyncedLyrics = %q", resp.SyncedLyrics)
+	}
+	if resp.PlainLyrics != "Hello world" {
+		t.Errorf("PlainLyrics = %q", resp.PlainLyrics)
 	}
 }
 
@@ -112,19 +115,31 @@ func TestSearch_picksClosestDuration(t *testing.T) {
 	}
 }
 
-func TestGet_delegatesToSearch(t *testing.T) {
-	calls := 0
+func TestSearch_emptyLyrics_notFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/search/get" {
-			calls++
+		switch r.URL.Path {
+		case "/api/search/get":
+			json.NewEncoder(w).Encode(map[string]any{
+				"result": map[string]any{
+					"songs": []map[string]any{{"id": 1, "duration": 210000}},
+				},
+			})
+		case "/api/song/lyric":
+			json.NewEncoder(w).Encode(map[string]any{
+				"lrc": map[string]any{"lyric": ""},
+			})
+		default:
+			http.NotFound(w, r)
 		}
-		json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{"songs": []any{}}})
 	}))
 	defer srv.Close()
 
 	c := netease.New(srv.URL)
-	c.Get(context.Background(), "A", "T", "L", 200.0)
-	if calls != 1 {
-		t.Errorf("want 1 search call, got %d", calls)
+	_, ok, err := c.Search(context.Background(), "Artist", "Song", 210.0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("want not found when lyrics are empty")
 	}
 }
