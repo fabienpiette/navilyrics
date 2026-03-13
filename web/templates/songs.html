@@ -90,6 +90,18 @@
         <input type="text"  id="search-title"  placeholder="Title"  title="Override the song title used for the lyrics search">
         <input type="text"  id="search-artist" placeholder="Artist" title="Override the artist name used for the lyrics search">
         <input type="text"  id="search-album"  placeholder="Album"  title="Override the album name used for the lyrics search">
+        {{if gt (len .AvailableProviders) 1}}
+        <div class="search-providers">
+          <label>Providers</label>
+          <div class="provider-checks">
+            {{range .AvailableProviders}}
+            <label class="provider-check">
+              <input type="checkbox" name="provider" value="{{.}}" checked> {{.}}
+            </label>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
         <div style="display:flex;align-items:center;gap:.5rem">
           <div class="action-group">
             <button class="action-btn" id="btn-do-search" onclick="doFetchLyrics()" title="Search providers with these values">Search</button>
@@ -233,15 +245,18 @@ function doFetchLyrics() {
   btn.disabled = true;
   btn.textContent = 'Searching\u2026';
   status.textContent = '';
-  var body = JSON.stringify({
+  var checked = Array.from(document.querySelectorAll('#preview-search input[name="provider"]:checked'))
+    .map(function(el) { return el.value; });
+  var payload = {
     title:  document.getElementById('search-title').value,
     artist: document.getElementById('search-artist').value,
     album:  document.getElementById('search-album').value
-  });
+  };
+  if (checked.length > 0) { payload.providers = checked; }
   fetch('/songs/' + encodeURIComponent(_currentSongId) + '/fetch', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: body
+    body: JSON.stringify(payload)
   })
     .then(function(r) { return r.json(); })
     .then(function(d) {

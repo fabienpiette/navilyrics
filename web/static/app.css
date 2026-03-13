@@ -287,3 +287,9 @@ a { color:inherit; }
     .preview-panel.open { transform:translateX(0); }
     .preview-inner { width:100%; }
 }
+
+/* Provider checkboxes in search form */
+.search-providers { display:flex; align-items:flex-start; gap:.5rem; font-size:0.85rem; }
+.provider-checks { display:flex; gap:1rem; flex-wrap:wrap; }
+.provider-check { display:flex; align-items:center; gap:0.25rem; cursor:pointer; }
+.provider-check input { cursor:pointer; }
