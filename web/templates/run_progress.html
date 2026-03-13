@@ -7,6 +7,7 @@
     <div class="stat-cell"><div class="stat-num" id="cnt-found">—</div><div class="stat-label">found</div></div>
     <div class="stat-cell"><div class="stat-num" id="cnt-notfound">—</div><div class="stat-label">not found</div></div>
     <div class="stat-cell"><div class="stat-num" id="cnt-skipped">—</div><div class="stat-label">skipped</div></div>
+    <div class="stat-cell"><div class="stat-num" id="cnt-instrumental">—</div><div class="stat-label">instrumental</div></div>
     <div class="stat-cell"><div class="stat-num" id="cnt-errors">—</div><div class="stat-label">errors</div></div>
 </div>
 
@@ -28,10 +29,11 @@ document.addEventListener('htmx:sseMessage', function(e) {
     if (e.detail.type === 'done') {
         try {
             var d = JSON.parse(e.detail.data);
-            document.getElementById('cnt-found').textContent    = d.found;
-            document.getElementById('cnt-notfound').textContent = d.not_found;
-            document.getElementById('cnt-skipped').textContent  = d.skipped;
-            document.getElementById('cnt-errors').textContent   = d.errors;
+            document.getElementById('cnt-found').textContent        = d.found;
+            document.getElementById('cnt-notfound').textContent     = d.not_found;
+            document.getElementById('cnt-skipped').textContent      = d.skipped;
+            document.getElementById('cnt-instrumental').textContent = d.instrumental;
+            document.getElementById('cnt-errors').textContent       = d.errors;
         } catch(ex) {}
     }
 });

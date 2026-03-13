@@ -121,6 +121,14 @@ loop:
 		found, notFound, skipped, instrumental, errors)
 	fmt.Fprintf(w, "event: done\ndata: %s\n\n", summary)
 	flusher.Flush()
+
+	if found > 0 {
+		go func() {
+			if err := h.nd.TriggerScan(context.Background()); err != nil {
+				_ = err // non-fatal: Navidrome will rescan on its own schedule
+			}
+		}()
+	}
 }
 
 // resultLineHTML builds an HTML fragment for one run result line.
