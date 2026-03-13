@@ -16,12 +16,34 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/user/navilyrics/internal/handlers"
 	"github.com/user/navilyrics/internal/lyrics"
+	"github.com/user/navilyrics/pkg/genius"
 	"github.com/user/navilyrics/pkg/lrclib"
 	"github.com/user/navilyrics/pkg/navidrome"
 	"github.com/user/navilyrics/pkg/netease"
 	"github.com/user/navilyrics/pkg/tagger"
 	"github.com/user/navilyrics/web"
 )
+
+// buildProviders constructs the ordered provider list from env config.
+// lrclib and netease are always included; genius is added if GENIUS_TOKEN is set.
+func buildProviders() []lyrics.Provider {
+	providers := []lyrics.Provider{
+		lyrics.NewLRCLibProvider(lrclib.New("")),   // "" = use default lrclib base URL
+		lyrics.NewNetEaseProvider(netease.New("")), // "" = use default netease base URL
+	}
+	if token := os.Getenv("GENIUS_TOKEN"); token != "" {
+		providers = append(providers, lyrics.NewGeniusProvider(genius.New(token, ""))) // "" = use default genius API URL
+	}
+	return providers
+}
+
+func providerNames(providers []lyrics.Provider) []string {
+	names := make([]string, len(providers))
+	for i, p := range providers {
+		names[i] = p.Name()
+	}
+	return names
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -60,10 +82,8 @@ func runCLI(args []string) error {
 	musicDir := requireEnv("MUSIC_DIR")
 
 	nd := navidrome.New(ndURL, ndUser, ndPass)
-	lrc := lrclib.New("https://lrclib.net")
-	proc := lyrics.NewProcessor(nd, lrc, strings.Split(musicDir, ":"), *dryRun)
-	ne := netease.New("")
-	proc.SetFallback(ne)
+	providers := buildProviders()
+	proc := lyrics.NewProcessor(nd, providers, strings.Split(musicDir, ":"), *dryRun)
 
 	var found, notFound, skipped, errCount atomic.Int64
 	progress := func(r lyrics.Result) {
@@ -114,10 +134,8 @@ func runServer(args []string) error {
 	dryRun := envBool("DRY_RUN")
 
 	nd := navidrome.New(ndURL, ndUser, ndPass)
-	lrc := lrclib.New("https://lrclib.net")
-	proc := lyrics.NewProcessor(nd, lrc, strings.Split(musicDir, ":"), dryRun)
-	ne := netease.New("")
-	proc.SetFallback(ne)
+	providers := buildProviders()
+	proc := lyrics.NewProcessor(nd, providers, strings.Split(musicDir, ":"), dryRun)
 
 	tmpls, err := handlers.ParseTemplates(web.FS)
 	if err != nil {
@@ -128,7 +146,7 @@ func runServer(args []string) error {
 		return fmt.Errorf("parse partials: %w", err)
 	}
 
-	h := handlers.New(nd, proc, tmpls, partials, "dev")
+	h := handlers.New(nd, proc, tmpls, partials, "dev", providerNames(providers))
 
 	staticFS, err := fs.Sub(web.FS, "static")
 	if err != nil {
