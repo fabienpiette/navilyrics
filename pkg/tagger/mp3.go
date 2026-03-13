@@ -18,18 +18,23 @@ func IsBodyOverflow(err error) bool {
 	return errors.Is(err, id3.ErrBodyOverflow)
 }
 
-// RepairID3 calls mp3val to fix malformed ID3v2 tag structures in path.
-// Returns an error if mp3val is not found in PATH or the repair fails.
-// The -nb flag suppresses backup file creation.
+// RepairID3 attempts to fix malformed ID3v2 tag structures in path.
+// It runs two repair passes in sequence:
+//  1. mp3val (if available) — fixes MPEG audio frame integrity issues.
+//  2. fixSynchsafeFrames — corrects frame sizes written as synchsafe integers
+//     in an ID3v2.3 tag (a common tagger bug that mp3val does not address).
+//
+// If mp3val is not installed, only the Go-native synchsafe fix is attempted.
+// The -nb flag suppresses mp3val backup file creation.
 func RepairID3(path string) error {
-	mp3valBin, err := exec.LookPath("mp3val")
-	if err != nil {
-		return fmt.Errorf("mp3val not found in PATH (install mp3val to enable automatic repair)")
+	if mp3valBin, err := exec.LookPath("mp3val"); err == nil {
+		out, err := exec.Command(mp3valBin, "-f", "-nb", path).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("mp3val: %w: %s", err, strings.TrimSpace(string(out)))
+		}
 	}
-	out, err := exec.Command(mp3valBin, "-f", "-nb", path).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("mp3val: %w: %s", err, strings.TrimSpace(string(out)))
-	}
+	// Second pass: fix synchsafe frame-size mismatch (soft — may not apply to all files).
+	_ = fixSynchsafeFrames(path)
 	return nil
 }
 
