@@ -49,7 +49,14 @@ func (p *Processor) SyncSong(song navidrome.Song) Result {
 	t, tErr := tagger.ForFile(audioPath)
 	var embPlain, embSynced string
 	if tErr == nil {
-		embPlain, embSynced, _ = t.ReadLyrics(audioPath)
+		var readErr error
+		embPlain, embSynced, readErr = t.ReadLyrics(audioPath)
+		if readErr != nil {
+			// Malformed tags — we can't determine state or write safely; skip.
+			log.Printf("[sync:skip] cannot read tags %s — %s: %v", song.Artist, song.Title, readErr)
+			base.Status = "skipped"
+			return base
+		}
 	}
 	hasEmbedded := embPlain != "" || embSynced != ""
 
