@@ -172,6 +172,7 @@ func runServer(args []string) error {
 	r.Get("/songs/{id}/meta", h.SongMeta)
 	r.Post("/songs/{id}/fetch", h.SongFetch)
 	r.Post("/songs/{id}/save", h.SongSave)
+	r.Post("/songs/{id}/tags", h.SongTagsSave)
 	r.Put("/songs/{id}/lrc", h.SongLRCSave)
 	r.Post("/run", h.RunBatch)
 	r.Post("/run/filtered", h.RunFiltered)

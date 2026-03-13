@@ -85,6 +85,7 @@
         <div class="action-group">
           <button class="action-btn" id="btn-fetch"   onclick="showSearchForm()" title="Search lyrics providers for this song">Find lyrics</button>
           <button class="action-btn" id="btn-edit"    onclick="editLRC()" title="Manually edit the LRC file">Edit</button>
+          <button class="action-btn" id="btn-tags"    onclick="showTagsForm()" title="Edit song metadata tags (title, artist, album, year…)">Tags</button>
           <button class="action-btn" id="btn-save"    onclick="saveLRC()"              style="display:none" title="Save your edits to disk">Save</button>
           <button class="action-btn" id="btn-cancel"  onclick="cancelEdit()"           style="display:none" title="Discard edits and restore the original">Cancel</button>
           <button class="action-btn" id="btn-confirm" onclick="saveFetchedLyrics()"    style="display:none" title="Write found lyrics to disk">Save lyrics</button>
@@ -116,6 +117,23 @@
           <span class="preview-status" id="search-status"></span>
         </div>
       </div>
+      <div class="preview-tags" id="preview-tags" style="display:none">
+        <div class="tags-grid">
+          <label>Title</label>  <input id="tag-title"  type="text">
+          <label>Artist</label> <input id="tag-artist" type="text">
+          <label>Album</label>  <input id="tag-album"  type="text">
+          <label>Year</label>   <input id="tag-year"   type="text" maxlength="4">
+          <label>Track</label>  <input id="tag-track"  type="text">
+          <label>Genre</label>  <input id="tag-genre"  type="text">
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;margin-top:.125rem">
+          <div class="action-group">
+            <button class="action-btn" id="btn-tags-save" onclick="saveTagsMeta()" title="Write these values to the audio file's embedded tags">Save tags</button>
+            <button class="action-btn" onclick="hideTagsForm()" title="Close without saving">Cancel</button>
+          </div>
+          <span class="preview-status" id="tags-status"></span>
+        </div>
+      </div>
       <pre class="preview-lrc placeholder" id="preview-lrc">Select a song to preview its lyrics.</pre>
     </div>
   </aside>
@@ -141,9 +159,11 @@ var _selectedRow = null;
 var _currentSongId = null;
 var _editOriginal = null;
 var _pendingLyrics = null; // {plain, synced} found but not yet saved
+var _currentMeta = null;   // raw meta JSON from /songs/{id}/meta
 
 function previewSong(id, row) {
   _exitEditMode(); // discard any unsaved edit when switching songs
+  hideTagsForm();
   if (_selectedRow) _selectedRow.classList.remove('selected');
   row.classList.add('selected');
   _selectedRow = row;
@@ -165,6 +185,7 @@ function previewSong(id, row) {
 }
 
 function _loadMeta(id) {
+  _currentMeta = null;
   var dl = document.getElementById('preview-details');
   dl.style.display = 'none';
   while (dl.firstChild) dl.removeChild(dl.firstChild);
@@ -172,6 +193,7 @@ function _loadMeta(id) {
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(d) {
       if (!d) return;
+      _currentMeta = d;
       var rows = [];
       if (d.year)        rows.push(['Year',    String(d.year)]);
       if (d.genre)       rows.push(['Genre',   d.genre]);
@@ -401,11 +423,67 @@ function _exitEditMode(content) {
 
 function closePreview() {
   _exitEditMode();
+  hideTagsForm();
   document.getElementById('preview-panel').classList.remove('open');
   document.getElementById('songs-layout').classList.remove('preview-open');
   document.getElementById('preview-details').style.display = 'none';
   if (_selectedRow) { _selectedRow.classList.remove('selected'); _selectedRow = null; }
   _currentSongId = null;
+  _currentMeta = null;
+}
+
+function showTagsForm() {
+  if (!_currentSongId) return;
+  hideSearchForm();
+  document.getElementById('tag-title').value  = _selectedRow ? (_selectedRow.dataset.title  || '') : '';
+  document.getElementById('tag-artist').value = _selectedRow ? (_selectedRow.dataset.artist || '') : '';
+  document.getElementById('tag-album').value  = _selectedRow ? (_selectedRow.dataset.album  || '') : '';
+  document.getElementById('tag-year').value   = _currentMeta ? (String(_currentMeta.year  || '')) : '';
+  document.getElementById('tag-track').value  = _currentMeta ? (String(_currentMeta.trackNumber || '')) : '';
+  document.getElementById('tag-genre').value  = _currentMeta ? (_currentMeta.genre || '') : '';
+  document.getElementById('tags-status').textContent = '';
+  document.getElementById('preview-tags').style.display = 'flex';
+  document.getElementById('tag-title').focus();
+}
+
+function hideTagsForm() {
+  document.getElementById('preview-tags').style.display = 'none';
+  document.getElementById('tags-status').textContent = '';
+}
+
+function saveTagsMeta() {
+  if (!_currentSongId) return;
+  var btn = document.getElementById('btn-tags-save');
+  var status = document.getElementById('tags-status');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+  status.textContent = '';
+  fetch('/songs/' + encodeURIComponent(_currentSongId) + '/tags', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      title:       document.getElementById('tag-title').value,
+      artist:      document.getElementById('tag-artist').value,
+      album:       document.getElementById('tag-album').value,
+      year:        document.getElementById('tag-year').value,
+      trackNumber: document.getElementById('tag-track').value,
+      genre:       document.getElementById('tag-genre').value
+    })
+  })
+  .then(function(r) {
+    btn.disabled = false;
+    btn.textContent = 'Save tags';
+    if (!r.ok) return r.text().then(function(t) { throw new Error(t || 'Save failed (' + r.status + ')'); });
+    status.textContent = 'Tags saved.';
+    // Reflect title/artist change in the preview header
+    document.getElementById('preview-title').textContent  = document.getElementById('tag-title').value;
+    document.getElementById('preview-artist').textContent = document.getElementById('tag-artist').value;
+  })
+  .catch(function(e) {
+    btn.disabled = false;
+    btn.textContent = 'Save tags';
+    status.textContent = e.message;
+  });
 }
 
 // If HTMX replaces the table rows and the selected row is gone, close the panel
