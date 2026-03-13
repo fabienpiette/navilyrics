@@ -52,10 +52,24 @@ func (p *Processor) SyncSong(song navidrome.Song) Result {
 		var readErr error
 		embPlain, embSynced, readErr = t.ReadLyrics(audioPath)
 		if readErr != nil {
-			// Malformed tags — we can't determine state or write safely; skip.
-			log.Printf("[sync:skip] cannot read tags %s — %s: %v", song.Artist, song.Title, readErr)
-			base.Status = "skipped"
-			return base
+			if !tagger.IsBodyOverflow(readErr) {
+				log.Printf("[sync:skip] cannot read tags %s — %s: %v", song.Artist, song.Title, readErr)
+				base.Status = "skipped"
+				return base
+			}
+			// Malformed ID3v2 frame sizes — attempt repair with mp3val then retry.
+			if repErr := tagger.RepairID3(audioPath); repErr != nil {
+				log.Printf("[sync:skip] cannot repair %s — %s: %v", song.Artist, song.Title, repErr)
+				base.Status = "skipped"
+				return base
+			}
+			log.Printf("[sync:repair] fixed malformed ID3v2 tags %s — %s", song.Artist, song.Title)
+			embPlain, embSynced, readErr = t.ReadLyrics(audioPath)
+			if readErr != nil {
+				log.Printf("[sync:skip] still unreadable after repair %s — %s: %v", song.Artist, song.Title, readErr)
+				base.Status = "skipped"
+				return base
+			}
 		}
 	}
 	hasEmbedded := embPlain != "" || embSynced != ""

@@ -2,11 +2,36 @@ package tagger
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	id3 "github.com/bogem/id3v2/v2"
 )
+
+// IsBodyOverflow reports whether err is the malformed ID3v2 frame-size error
+// produced by bogem/id3v2 when a frame's declared size exceeds the tag area.
+// This typically means the file was written with synchsafe frame sizes by a
+// tagger that declared an ID3v2.3 header (or vice versa).
+func IsBodyOverflow(err error) bool {
+	return errors.Is(err, id3.ErrBodyOverflow)
+}
+
+// RepairID3 calls mp3val to fix malformed ID3v2 tag structures in path.
+// Returns an error if mp3val is not found in PATH or the repair fails.
+// The -nb flag suppresses backup file creation.
+func RepairID3(path string) error {
+	mp3valBin, err := exec.LookPath("mp3val")
+	if err != nil {
+		return fmt.Errorf("mp3val not found in PATH (install mp3val to enable automatic repair)")
+	}
+	out, err := exec.Command(mp3valBin, "-f", "-nb", path).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("mp3val: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
 
 type mp3Tagger struct{}
 
