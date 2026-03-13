@@ -24,6 +24,7 @@ type Result struct {
 	Source       string // name of the winning provider ("lrclib", "netease", "genius", …), or ""
 	Status       string // "found" | "not_found" | "skipped" | "error" | "dry_run"
 	Err          string
+	Note         string // informational annotation shown in the UI log (e.g. "repaired ID3v2")
 }
 
 // Processor fetches and writes lyrics for Navidrome songs.

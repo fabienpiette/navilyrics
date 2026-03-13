@@ -41,9 +41,9 @@ function toggleFilter(pill, logId) {
 }
 
 function exportCSV(logId, filename) {
-    var rows = [['status','artist','title','error']];
+    var rows = [['status','artist','title','note','error']];
     document.getElementById(logId).querySelectorAll('.run-log-line[data-status]').forEach(function(el) {
-        rows.push([el.dataset.status||'', el.dataset.artist||'', el.dataset.title||'', el.dataset.err||'']);
+        rows.push([el.dataset.status||'', el.dataset.artist||'', el.dataset.title||'', el.dataset.note||'', el.dataset.err||'']);
     });
     var csv = rows.map(function(r) {
         return r.map(function(v) { return '"' + v.replace(/"/g,'""') + '"'; }).join(',');

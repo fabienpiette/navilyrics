@@ -136,15 +136,18 @@ loop:
 // Data attributes (data-status, data-artist, data-title, data-err, data-source)
 // are included so the frontend can filter rows and export CSV without extra requests.
 func resultLineHTML(r lyrics.Result) string {
-	errPart := ""
+	extra := ""
+	if r.Note != "" {
+		extra += ` <span class="muted note">[` + html.EscapeString(r.Note) + `]</span>`
+	}
 	if r.Err != "" {
-		errPart = ` <span class="muted">(` + html.EscapeString(r.Err) + `)</span>`
+		extra += ` <span class="muted">(` + html.EscapeString(r.Err) + `)</span>`
 	}
 	return fmt.Sprintf(
-		`<div class="run-log-line" data-status="%s" data-artist="%s" data-title="%s" data-err="%s" data-source="%s"><span class="badge badge-%s">%s</span> <span class="muted">%s</span> — %s%s</div>`,
+		`<div class="run-log-line" data-status="%s" data-artist="%s" data-title="%s" data-err="%s" data-source="%s" data-note="%s"><span class="badge badge-%s">%s</span> <span class="muted">%s</span> — %s%s</div>`,
 		html.EscapeString(r.Status), html.EscapeString(r.Artist), html.EscapeString(r.Title),
-		html.EscapeString(r.Err), html.EscapeString(r.Source),
+		html.EscapeString(r.Err), html.EscapeString(r.Source), html.EscapeString(r.Note),
 		html.EscapeString(r.Status), html.EscapeString(r.Status),
-		html.EscapeString(r.Artist), html.EscapeString(r.Title), errPart,
+		html.EscapeString(r.Artist), html.EscapeString(r.Title), extra,
 	)
 }

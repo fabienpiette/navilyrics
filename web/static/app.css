@@ -108,8 +108,9 @@ tr:nth-child(even) td { background:rgba(128,128,128,.02); }
 
 /* Run log */
 .run-log { font-family:ui-monospace,monospace; font-size:.75rem; background:rgba(128,128,128,.05); border:1px solid var(--border); padding:.75rem; max-height:60vh; overflow-y:auto; }
-.run-log-line { padding:.2rem 0; border-bottom:1px solid rgba(128,128,128,.08); display:flex; align-items:baseline; gap:.5rem; }
+.run-log-line { padding:.2rem 0; border-bottom:1px solid rgba(128,128,128,.08); display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap; }
 .run-log-line:last-child { border-bottom:none; }
+.run-log-line .note { font-style:italic; }
 
 /* Run log status filter — toggled by JS via .hide-{status} on .run-log */
 .run-log.hide-found           .run-log-line[data-status="found"]           { display:none; }

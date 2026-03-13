@@ -55,12 +55,14 @@ func (p *Processor) SyncSong(song navidrome.Song) Result {
 			if !tagger.IsBodyOverflow(readErr) {
 				log.Printf("[sync:skip] cannot read tags %s — %s: %v", song.Artist, song.Title, readErr)
 				base.Status = "skipped"
+				base.Err = readErr.Error()
 				return base
 			}
 			// Malformed ID3v2 frame sizes — attempt repair with mp3val then retry.
 			if repErr := tagger.RepairID3(audioPath); repErr != nil {
 				log.Printf("[sync:skip] cannot repair %s — %s: %v", song.Artist, song.Title, repErr)
 				base.Status = "skipped"
+				base.Err = "cannot repair: " + repErr.Error()
 				return base
 			}
 			log.Printf("[sync:repair] fixed malformed ID3v2 tags %s — %s", song.Artist, song.Title)
@@ -68,8 +70,10 @@ func (p *Processor) SyncSong(song navidrome.Song) Result {
 			if readErr != nil {
 				log.Printf("[sync:skip] still unreadable after repair %s — %s: %v", song.Artist, song.Title, readErr)
 				base.Status = "skipped"
+				base.Err = "still unreadable after repair: " + readErr.Error()
 				return base
 			}
+			base.Note = "repaired ID3v2"
 		}
 	}
 	hasEmbedded := embPlain != "" || embSynced != ""
