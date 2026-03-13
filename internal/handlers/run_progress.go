@@ -83,7 +83,7 @@ func (h *Handler) RunEvents(w http.ResponseWriter, r *http.Request) {
 
 	defer h.runs.delete(id)
 
-	var found, notFound, skipped, errors int
+	var found, notFound, skipped, instrumental, errors int
 loop:
 	for {
 		select {
@@ -101,6 +101,8 @@ loop:
 				notFound++
 			case "skipped":
 				skipped++
+			case "instrumental":
+				instrumental++
 			case "error":
 				errors++
 			}
@@ -115,8 +117,8 @@ loop:
 		}
 	}
 
-	summary := fmt.Sprintf(`{"found":%d,"not_found":%d,"skipped":%d,"errors":%d}`,
-		found, notFound, skipped, errors)
+	summary := fmt.Sprintf(`{"found":%d,"not_found":%d,"skipped":%d,"instrumental":%d,"errors":%d}`,
+		found, notFound, skipped, instrumental, errors)
 	fmt.Fprintf(w, "event: done\ndata: %s\n\n", summary)
 	flusher.Flush()
 }
