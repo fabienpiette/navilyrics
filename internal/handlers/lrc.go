@@ -91,11 +91,13 @@ func (h *Handler) SongFetch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional body may override title/artist/album for manual searches.
+	// Optional body may override title/artist/album for manual searches,
+	// and restrict which providers are queried.
 	var overrides struct {
-		Title  string `json:"title"`
-		Artist string `json:"artist"`
-		Album  string `json:"album"`
+		Title     string   `json:"title"`
+		Artist    string   `json:"artist"`
+		Album     string   `json:"album"`
+		Providers []string `json:"providers"` // nil = use all configured providers
 	}
 	_ = json.NewDecoder(r.Body).Decode(&overrides)
 	if overrides.Title != "" {
@@ -108,7 +110,7 @@ func (h *Handler) SongFetch(w http.ResponseWriter, r *http.Request) {
 		song.Album = overrides.Album
 	}
 
-	result := h.proc.FetchLyricsOnly(r.Context(), song)
+	result := h.proc.FetchLyricsOnly(r.Context(), song, overrides.Providers)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{

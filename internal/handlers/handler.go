@@ -16,18 +16,23 @@ import (
 
 // Handler holds shared dependencies for all HTTP handlers.
 type Handler struct {
-	nd       *navidrome.Client
-	proc     *lyrics.Processor
-	tmpls    map[string]*template.Template
-	partials map[string]*template.Template
-	version  string
-	runs     *RunStore
-	stats    *statsCache
+	nd                 *navidrome.Client
+	proc               *lyrics.Processor
+	tmpls              map[string]*template.Template
+	partials           map[string]*template.Template
+	version            string
+	runs               *RunStore
+	stats              *statsCache
+	availableProviders []string
 }
 
 // New creates a Handler and kicks off a background stats refresh.
-func New(nd *navidrome.Client, proc *lyrics.Processor, tmpls, partials map[string]*template.Template, version string) *Handler {
-	h := &Handler{nd: nd, proc: proc, tmpls: tmpls, partials: partials, version: version, runs: newRunStore(), stats: &statsCache{}}
+func New(nd *navidrome.Client, proc *lyrics.Processor, tmpls, partials map[string]*template.Template, version string, availableProviders []string) *Handler {
+	h := &Handler{
+		nd: nd, proc: proc, tmpls: tmpls, partials: partials,
+		version: version, runs: newRunStore(), stats: &statsCache{},
+		availableProviders: availableProviders,
+	}
 	go func() {
 		if err := h.stats.refresh(context.Background(), nd); err != nil {
 			log.Printf("stats: boot refresh failed: %v", err)

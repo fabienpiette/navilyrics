@@ -23,8 +23,9 @@ type songsRowsData struct {
 }
 
 type songsData struct {
-	ActiveTab string
-	Version   string
+	ActiveTab          string
+	Version            string
+	AvailableProviders []string
 	songsRowsData
 }
 
@@ -37,9 +38,10 @@ func (h *Handler) Songs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, "songs.html", songsData{
-		ActiveTab:     "songs",
-		Version:       h.version,
-		songsRowsData: rows,
+		ActiveTab:          "songs",
+		Version:            h.version,
+		AvailableProviders: h.availableProviders,
+		songsRowsData:      rows,
 	})
 }
 
