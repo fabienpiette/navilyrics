@@ -209,14 +209,20 @@ function _loadLRC(id) {
     .then(function(r) {
       if (r.status === 404) {
         lrc.className = 'preview-lrc placeholder';
-        lrc.textContent = 'No .lrc file yet.';
+        lrc.textContent = 'No lyrics found.';
+        document.getElementById('preview-status').textContent = '';
         return null;
       }
       if (!r.ok) {
         lrc.className = 'preview-lrc placeholder';
         lrc.textContent = 'Error loading lyrics.';
+        document.getElementById('preview-status').textContent = '';
         return null;
       }
+      var src = r.headers.get('X-Lyrics-Source');
+      document.getElementById('preview-status').textContent =
+        src === 'embedded' ? 'Source: embedded tags' :
+        src === 'lrc'      ? 'Source: .lrc sidecar'  : '';
       return r.text();
     })
     .then(function(t) { if (t != null) lrc.textContent = t; })

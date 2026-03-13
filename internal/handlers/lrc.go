@@ -7,13 +7,19 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/user/navilyrics/internal/lyrics"
 	"github.com/user/navilyrics/pkg/navidrome"
+	"github.com/user/navilyrics/pkg/tagger"
 )
 
-// SongLRC serves the raw .lrc sidecar for a song as plain text.
+// SongLRC serves lyrics for a song as plain text.
+// It first looks for a .lrc sidecar file; if absent, falls back to lyrics
+// embedded in the audio file's tags. The response header X-Lyrics-Source is
+// set to "lrc" or "embedded" so the client can display the provenance.
 // GET /songs/{id}/lrc
 func (h *Handler) SongLRC(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
@@ -28,24 +34,41 @@ func (h *Handler) SongLRC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lrcPath := h.proc.ResolveLRCPath(song.Path)
-	if lrcPath == "" {
+	audioPath := h.proc.ResolveAudioPath(song.Path)
+	if audioPath == "" {
 		http.NotFound(w, r)
 		return
 	}
+	lrcPath := strings.TrimSuffix(audioPath, filepath.Ext(audioPath)) + ".lrc"
 
-	data, err := os.ReadFile(lrcPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			http.NotFound(w, r)
-			return
-		}
+	// Try .lrc sidecar first.
+	if data, err := os.ReadFile(lrcPath); err == nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Lyrics-Source", "lrc")
+		_, _ = w.Write(data)
+		return
+	} else if !os.IsNotExist(err) {
 		http.Error(w, "read lrc: "+html.EscapeString(err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = w.Write(data)
+	// Fallback: read lyrics embedded in the audio file's tags.
+	t, err := tagger.ForFile(audioPath)
+	if err == nil {
+		plain, synced, err := t.ReadLyrics(audioPath)
+		if err == nil && (plain != "" || synced != "") {
+			text := synced
+			if text == "" {
+				text = plain
+			}
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Set("X-Lyrics-Source", "embedded")
+			_, _ = w.Write([]byte(text))
+			return
+		}
+	}
+
+	http.NotFound(w, r)
 }
 
 // SongMeta returns selected song metadata as JSON for the preview panel.

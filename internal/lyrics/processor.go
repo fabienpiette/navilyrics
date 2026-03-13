@@ -53,6 +53,12 @@ func (p *Processor) resolveAudioPath(relPath string) string {
 	return ""
 }
 
+// ResolveAudioPath returns the full path to the audio file for a relative song
+// path, or "" if not found in any music dir.
+func (p *Processor) ResolveAudioPath(relPath string) string {
+	return p.resolveAudioPath(relPath)
+}
+
 // ResolveLRCPath returns the full .lrc sidecar path for a relative song path,
 // or "" if the audio file is not found in any music dir.
 func (p *Processor) ResolveLRCPath(relPath string) string {
