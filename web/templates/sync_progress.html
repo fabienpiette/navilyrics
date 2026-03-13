@@ -1,0 +1,39 @@
+{{define "title"}}navilyrics — syncing…{{end}}
+
+{{define "content"}}
+<h2>Sync lyrics gaps</h2>
+
+<div class="stats-grid" id="sync-summary" style="margin-bottom:1.5rem">
+    <div class="stat-cell"><div class="stat-num" id="cnt-synced-lrc">—</div><div class="stat-label">wrote .lrc</div></div>
+    <div class="stat-cell"><div class="stat-num" id="cnt-synced-embedded">—</div><div class="stat-label">wrote embedded</div></div>
+    <div class="stat-cell"><div class="stat-num" id="cnt-skipped">—</div><div class="stat-label">skipped</div></div>
+    <div class="stat-cell"><div class="stat-num" id="cnt-errors">—</div><div class="stat-label">errors</div></div>
+</div>
+
+<div class="run-log"
+     hx-ext="sse"
+     sse-connect="/sync/{{.RunID}}/events"
+     id="sync-log">
+    <div sse-swap="result" hx-swap="afterbegin" id="sync-log-inner"></div>
+    <div sse-swap="done" hx-swap="none" id="sync-done-trigger"></div>
+</div>
+
+<div class="form-actions" style="margin-top:1rem">
+    <a href="/" class="btn secondary" title="Back to library overview">Dashboard</a>
+    <a href="/songs" class="btn secondary" title="Browse songs">Songs</a>
+</div>
+
+<script>
+document.addEventListener('htmx:sseMessage', function(e) {
+    if (e.detail.type === 'done') {
+        try {
+            var d = JSON.parse(e.detail.data);
+            document.getElementById('cnt-synced-lrc').textContent      = d.synced_lrc;
+            document.getElementById('cnt-synced-embedded').textContent = d.synced_embedded;
+            document.getElementById('cnt-skipped').textContent         = d.skipped;
+            document.getElementById('cnt-errors').textContent          = d.errors;
+        } catch(ex) {}
+    }
+});
+</script>
+{{end}}

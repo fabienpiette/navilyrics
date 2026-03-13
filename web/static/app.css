@@ -94,8 +94,10 @@ tr:nth-child(even) td { background:rgba(128,128,128,.02); }
 .badge-skipped { border-color:var(--muted);   color:var(--muted); }
 .badge-not_found { border-color:var(--warn);  color:var(--warn); }
 .badge-error   { border-color:var(--error);   color:var(--error); }
-.badge-dry_run      { border-color:var(--muted);   color:var(--muted); }
-.badge-instrumental { border-color:var(--muted);   color:var(--muted); }
+.badge-dry_run        { border-color:var(--muted);   color:var(--muted); }
+.badge-instrumental   { border-color:var(--muted);   color:var(--muted); }
+.badge-synced_lrc     { border-color:var(--success); color:var(--success); }
+.badge-synced_embedded { border-color:var(--success); color:var(--success); }
 
 /* Stats grid */
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:1px; border:1px solid var(--border); margin-bottom:1.5rem; }

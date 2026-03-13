@@ -63,6 +63,10 @@ func main() {
 		if err := runUpgrade(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+	case "sync":
+		if err := runSync(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand %q\n", os.Args[1])
 		os.Exit(1)
@@ -172,6 +176,8 @@ func runServer(args []string) error {
 	r.Post("/run", h.RunBatch)
 	r.Post("/run/filtered", h.RunFiltered)
 	r.Get("/run/{id}/events", h.RunEvents)
+	r.Post("/sync", h.RunSync)
+	r.Get("/sync/{id}/events", h.SyncEvents)
 	r.Get("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
@@ -218,6 +224,57 @@ func runUpgrade(args []string) error {
 		}
 	}
 	log.Printf("done: upgraded=%d skipped=%d errors=%d", upgraded, skipped, errCount)
+	return nil
+}
+
+// runSync walks all Navidrome songs and fills lyrics gaps:
+// songs with a .lrc but no embedded tags get their tags written,
+// and songs with embedded tags but no .lrc get a sidecar written.
+func runSync(args []string) error {
+	fs4 := flag.NewFlagSet("sync", flag.ExitOnError)
+	if err := fs4.Parse(args); err != nil {
+		return err
+	}
+
+	ndURL := requireEnv("NAVIDROME_URL")
+	ndUser := requireEnv("NAVIDROME_USER")
+	ndPass := requireEnv("NAVIDROME_PASS")
+	musicDir := requireEnv("MUSIC_DIR")
+
+	nd := navidrome.New(ndURL, ndUser, ndPass)
+	proc := lyrics.NewProcessor(nd, nil, strings.Split(musicDir, ":"), false)
+
+	ctx := context.Background()
+	songs, err := nd.AllSongs(ctx)
+	if err != nil {
+		return fmt.Errorf("list songs: %w", err)
+	}
+
+	var syncedLRC, syncedEmbedded, skipped, errCount atomic.Int64
+	if err := proc.SyncAll(ctx, songs, func(r lyrics.Result) {
+		switch r.Status {
+		case "synced_lrc":
+			syncedLRC.Add(1)
+		case "synced_embedded":
+			syncedEmbedded.Add(1)
+		case "skipped":
+			skipped.Add(1)
+		case "error":
+			errCount.Add(1)
+			log.Printf("error  %s — %s: %s", r.Artist, r.Title, r.Err)
+		}
+	}); err != nil {
+		return fmt.Errorf("sync: %w", err)
+	}
+
+	if syncedEmbedded.Load() > 0 {
+		if err := nd.TriggerScan(ctx); err != nil {
+			log.Printf("trigger scan: %v", err)
+		}
+	}
+
+	log.Printf("done: synced_lrc=%d synced_embedded=%d skipped=%d errors=%d",
+		syncedLRC.Load(), syncedEmbedded.Load(), skipped.Load(), errCount.Load())
 	return nil
 }
 
