@@ -9,15 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/user/navilyrics/pkg/lrclib"
 	"github.com/user/navilyrics/pkg/navidrome"
 )
-
-// LRCFetcher abstracts lrclib lookups (enables test stubs without network).
-type LRCFetcher interface {
-	Get(ctx context.Context, artist, title, album string, duration float64) (lrclib.Response, bool, error)
-	Search(ctx context.Context, artist, title string, duration float64) (lrclib.Response, bool, error)
-}
 
 // Result holds the outcome of processing a single song.
 type Result struct {
@@ -28,7 +21,7 @@ type Result struct {
 	PlainLyrics  string
 	SyncedLyrics string
 	Instrumental bool   // true when the provider confirmed no lyrics (instrumental track)
-	Source       string // "lrclib" | "netease" | ""
+	Source       string // name of the winning provider ("lrclib", "netease", "genius", …), or ""
 	Status       string // "found" | "not_found" | "skipped" | "error" | "dry_run"
 	Err          string
 }
@@ -36,20 +29,16 @@ type Result struct {
 // Processor fetches and writes lyrics for Navidrome songs.
 type Processor struct {
 	nd        *navidrome.Client // may be nil in tests
-	lrc       LRCFetcher
-	fallback  LRCFetcher // optional; nil = disabled
+	providers []Provider
 	musicDirs []string
 	dryRun    bool
 }
 
-// SetFallback sets an optional secondary lyrics source tried after lrc fails.
-func (p *Processor) SetFallback(f LRCFetcher) { p.fallback = f }
-
 // NewProcessor creates a Processor. nd may be nil when using ProcessSong directly.
 // musicDirs is a list of base directories to search for audio files; the first
 // directory containing the relative song path is used.
-func NewProcessor(nd *navidrome.Client, lrc LRCFetcher, musicDirs []string, dryRun bool) *Processor {
-	return &Processor{nd: nd, lrc: lrc, musicDirs: musicDirs, dryRun: dryRun}
+func NewProcessor(nd *navidrome.Client, providers []Provider, musicDirs []string, dryRun bool) *Processor {
+	return &Processor{nd: nd, providers: providers, musicDirs: musicDirs, dryRun: dryRun}
 }
 
 // resolveAudioPath finds the first musicDir where song.Path exists on disk.
@@ -74,9 +63,10 @@ func (p *Processor) ResolveLRCPath(relPath string) string {
 	return lrcPathFor(audioPath)
 }
 
-// FetchLyricsOnly searches external providers for lyrics without writing anything.
-// Returns a Result with status "found" or "not_found" and the lyrics if found.
-func (p *Processor) FetchLyricsOnly(ctx context.Context, song navidrome.Song) Result {
+// FetchLyricsOnly searches configured providers for lyrics without writing to disk.
+// filter restricts which providers are tried (by Name()); nil/empty = try all.
+// Returns a Result with Status "found" or "not_found".
+func (p *Processor) FetchLyricsOnly(ctx context.Context, song navidrome.Song, filter []string) Result {
 	r := Result{
 		SongID:   song.ID,
 		SongPath: song.Path,
@@ -84,42 +74,39 @@ func (p *Processor) FetchLyricsOnly(ctx context.Context, song navidrome.Song) Re
 		Artist:   song.Artist,
 	}
 
-	// Strategy 1: exact get
-	resp, ok, err := p.lrc.Get(ctx, song.Artist, song.Title, song.Album, song.Duration)
-	if err != nil {
-		log.Printf("lrclib get %q: %v", song.Title, err)
-	}
-	// Strategy 2: fuzzy search if exact failed
-	if !ok {
-		resp, ok, err = p.lrc.Search(ctx, song.Artist, song.Title, song.Duration)
-		if err != nil {
-			log.Printf("lrclib search %q: %v", song.Title, err)
+	providers := p.providers
+	if len(filter) > 0 {
+		active := make([]Provider, 0, len(filter))
+		for _, prov := range p.providers {
+			for _, f := range filter {
+				if prov.Name() == f {
+					active = append(active, prov)
+					break
+				}
+			}
 		}
-	}
-	// Strategy 3: fallback provider
-	if !ok && p.fallback != nil {
-		resp, ok, err = p.fallback.Search(ctx, song.Artist, song.Title, song.Duration)
-		if err != nil {
-			log.Printf("netease search %q: %v", song.Title, err)
-		}
-		if ok {
-			r.Source = "netease"
-		}
+		providers = active
 	}
 
-	if !ok {
-		log.Printf("[not_found] %s — %s", song.Artist, song.Title)
-		r.Status = "not_found"
+	for _, prov := range providers {
+		res, ok, err := prov.Search(ctx, song.Artist, song.Title, song.Album, song.Duration)
+		if err != nil {
+			log.Printf("%s search %q: %v", prov.Name(), song.Title, err)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		r.PlainLyrics = res.PlainLyrics
+		r.SyncedLyrics = res.SyncedLyrics
+		r.Instrumental = res.Instrumental
+		r.Source = prov.Name()
+		r.Status = "found"
 		return r
 	}
 
-	r.PlainLyrics = resp.PlainLyrics
-	r.SyncedLyrics = resp.SyncedLyrics
-	r.Instrumental = resp.Instrumental
-	if r.Source == "" {
-		r.Source = "lrclib"
-	}
-	r.Status = "found"
+	log.Printf("[not_found] %s — %s", song.Artist, song.Title)
+	r.Status = "not_found"
 	return r
 }
 
@@ -149,7 +136,7 @@ func (p *Processor) ProcessSong(ctx context.Context, song navidrome.Song) Result
 		return base
 	}
 
-	r := p.FetchLyricsOnly(ctx, song)
+	r := p.FetchLyricsOnly(ctx, song, nil)
 	if r.Status != "found" {
 		return r
 	}

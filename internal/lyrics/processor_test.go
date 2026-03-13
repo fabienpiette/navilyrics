@@ -7,25 +7,11 @@ import (
 	"testing"
 
 	"github.com/user/navilyrics/internal/lyrics"
-	"github.com/user/navilyrics/pkg/lrclib"
 	"github.com/user/navilyrics/pkg/navidrome"
 )
 
-type stubLRCLib struct {
-	response lrclib.Response
-	found    bool
-}
-
-func (s *stubLRCLib) Get(_ context.Context, _, _, _ string, _ float64) (lrclib.Response, bool, error) {
-	return s.response, s.found, nil
-}
-
-func (s *stubLRCLib) Search(_ context.Context, _, _ string, _ float64) (lrclib.Response, bool, error) {
-	return s.response, s.found, nil
-}
-
 func TestProcessor_skipsHasLyrics(t *testing.T) {
-	p := lyrics.NewProcessor(nil, &stubLRCLib{found: true}, []string{"/music"}, true)
+	p := lyrics.NewProcessor(nil, []lyrics.Provider{&stubProvider{name: "lrclib", ok: true}}, []string{"/music"}, true)
 	song := navidrome.Song{ID: "1", HasLyrics: true, Path: "/music/song.mp3"}
 	result := p.ProcessSong(context.Background(), song)
 	if result.Status != "skipped" {
@@ -34,14 +20,12 @@ func TestProcessor_skipsHasLyrics(t *testing.T) {
 }
 
 func TestProcessor_dryRunWhenFound(t *testing.T) {
-	stub := &stubLRCLib{
-		found: true,
-		response: lrclib.Response{
-			PlainLyrics:  "Line one",
-			SyncedLyrics: "[00:01.00] Line one",
-		},
+	stub := &stubProvider{
+		name:   "lrclib",
+		ok:     true,
+		result: lyrics.ProviderResult{PlainLyrics: "Line one", SyncedLyrics: "[00:01.00] Line one"},
 	}
-	p := lyrics.NewProcessor(nil, stub, []string{"/music"}, true)
+	p := lyrics.NewProcessor(nil, []lyrics.Provider{stub}, []string{"/music"}, true)
 	song := navidrome.Song{ID: "2", Title: "Song", Artist: "Artist", HasLyrics: false, Path: "/music/song.mp3"}
 	result := p.ProcessSong(context.Background(), song)
 	if result.Status != "dry_run" {
@@ -56,7 +40,7 @@ func TestProcessor_dryRunWhenFound(t *testing.T) {
 }
 
 func TestProcessor_notFound(t *testing.T) {
-	p := lyrics.NewProcessor(nil, &stubLRCLib{found: false}, []string{"/music"}, false)
+	p := lyrics.NewProcessor(nil, []lyrics.Provider{&stubProvider{name: "lrclib", ok: false}}, []string{"/music"}, false)
 	song := navidrome.Song{ID: "3", HasLyrics: false, Path: "/music/song.flac"}
 	result := p.ProcessSong(context.Background(), song)
 	if result.Status != "not_found" {
@@ -64,27 +48,15 @@ func TestProcessor_notFound(t *testing.T) {
 	}
 }
 
-type stubFetcher struct {
-	ok   bool
-	resp lrclib.Response
-}
-
-func (s *stubFetcher) Get(_ context.Context, _, _, _ string, _ float64) (lrclib.Response, bool, error) {
-	return s.resp, s.ok, nil
-}
-
-func (s *stubFetcher) Search(_ context.Context, _, _ string, _ float64) (lrclib.Response, bool, error) {
-	return s.resp, s.ok, nil
-}
-
-func TestProcessor_fallbackUsedWhenLrclibMisses(t *testing.T) {
-	primary := &stubFetcher{ok: false}
-	fallback := &stubFetcher{ok: true, resp: lrclib.Response{PlainLyrics: "fallback", SyncedLyrics: "[00:01.00] fallback"}}
-
-	proc := lyrics.NewProcessor(nil, primary, []string{"/music"}, true)
-	proc.SetFallback(fallback)
-
-	song := navidrome.Song{Title: "T", Artist: "A", Album: "L", Duration: 200}
+func TestProcessor_secondProviderUsedWhenFirstMisses(t *testing.T) {
+	primary := &stubProvider{name: "lrclib", ok: false}
+	secondary := &stubProvider{
+		name:   "netease",
+		ok:     true,
+		result: lyrics.ProviderResult{PlainLyrics: "fallback", SyncedLyrics: "[00:01.00] fallback"},
+	}
+	proc := lyrics.NewProcessor(nil, []lyrics.Provider{primary, secondary}, []string{"/music"}, true)
+	song := navidrome.Song{Title: "T", Artist: "A", Duration: 200}
 	r := proc.ProcessSong(context.Background(), song)
 	if r.Status != "dry_run" {
 		t.Fatalf("want dry_run, got %s", r.Status)
@@ -100,8 +72,7 @@ func TestProcessor_ResolveLRCPath(t *testing.T) {
 	if err := os.WriteFile(audioPath, []byte{}, 0644); err != nil {
 		t.Fatal(err)
 	}
-
-	proc := lyrics.NewProcessor(nil, &stubFetcher{}, []string{dir}, false)
+	proc := lyrics.NewProcessor(nil, nil, []string{dir}, false)
 	got := proc.ResolveLRCPath("song.mp3")
 	want := filepath.Join(dir, "song.lrc")
 	if got != want {
@@ -110,7 +81,7 @@ func TestProcessor_ResolveLRCPath(t *testing.T) {
 }
 
 func TestProcessor_ResolveLRCPath_notFound(t *testing.T) {
-	proc := lyrics.NewProcessor(nil, &stubFetcher{}, []string{"/nonexistent"}, false)
+	proc := lyrics.NewProcessor(nil, nil, []string{"/nonexistent"}, false)
 	if got := proc.ResolveLRCPath("song.mp3"); got != "" {
 		t.Errorf("want empty, got %q", got)
 	}
