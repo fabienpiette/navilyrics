@@ -41,3 +41,18 @@ func TestWriteLRCFile_empty(t *testing.T) {
 		t.Error("lrc file should not be created for empty synced lyrics")
 	}
 }
+
+func TestWriteRawLRC(t *testing.T) {
+	lrcPath := filepath.Join(t.TempDir(), "song.lrc")
+	content := "[00:01.00] Hello\n[00:02.00] World"
+	if err := lyrics.WriteRawLRC(lrcPath, content); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(lrcPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != content {
+		t.Errorf("content = %q, want %q", got, content)
+	}
+}
