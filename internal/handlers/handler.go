@@ -24,14 +24,16 @@ type Handler struct {
 	runs               *RunStore
 	stats              *statsCache
 	availableProviders []string
+	goscribeEnabled    bool
 }
 
 // New creates a Handler and kicks off a background stats refresh.
-func New(nd *navidrome.Client, proc *lyrics.Processor, tmpls, partials map[string]*template.Template, version string, availableProviders []string) *Handler {
+func New(nd *navidrome.Client, proc *lyrics.Processor, tmpls, partials map[string]*template.Template, version string, availableProviders []string, goscribeEnabled bool) *Handler {
 	h := &Handler{
 		nd: nd, proc: proc, tmpls: tmpls, partials: partials,
 		version: version, runs: newRunStore(), stats: &statsCache{},
 		availableProviders: availableProviders,
+		goscribeEnabled:    goscribeEnabled,
 	}
 	go func() {
 		if err := h.stats.refresh(context.Background(), nd); err != nil {

@@ -26,6 +26,7 @@ type songsData struct {
 	ActiveTab          string
 	Version            string
 	AvailableProviders []string
+	GoscribeEnabled    bool
 	songsRowsData
 }
 
@@ -41,6 +42,7 @@ func (h *Handler) Songs(w http.ResponseWriter, r *http.Request) {
 		ActiveTab:          "songs",
 		Version:            h.version,
 		AvailableProviders: h.availableProviders,
+		GoscribeEnabled:    h.goscribeEnabled,
 		songsRowsData:      rows,
 	})
 }
@@ -204,4 +206,3 @@ func (h *Handler) allMatchingSongs(ctx context.Context, query, filter string) ([
 	}
 	return songs, nil
 }
-
