@@ -17,6 +17,7 @@ import (
 	"github.com/user/navilyrics/internal/handlers"
 	"github.com/user/navilyrics/internal/lyrics"
 	"github.com/user/navilyrics/pkg/genius"
+	"github.com/user/navilyrics/pkg/goscribe"
 	"github.com/user/navilyrics/pkg/lrclib"
 	"github.com/user/navilyrics/pkg/navidrome"
 	"github.com/user/navilyrics/pkg/netease"
@@ -43,6 +44,13 @@ func providerNames(providers []lyrics.Provider) []string {
 		names[i] = p.Name()
 	}
 	return names
+}
+
+func buildTranscribers() []lyrics.Transcriber {
+	if url := os.Getenv("GOSCRIBE_URL"); url != "" {
+		return []lyrics.Transcriber{lyrics.NewGoscribeTranscriber(goscribe.New(url))}
+	}
+	return nil
 }
 
 func main() {
@@ -87,7 +95,7 @@ func runCLI(args []string) error {
 
 	nd := navidrome.New(ndURL, ndUser, ndPass)
 	providers := buildProviders()
-	proc := lyrics.NewProcessor(nd, providers, strings.Split(musicDir, ":"), *dryRun)
+	proc := lyrics.NewProcessor(nd, providers, buildTranscribers(), strings.Split(musicDir, ":"), *dryRun)
 
 	var found, notFound, skipped, instrumental, errCount atomic.Int64
 	progress := func(r lyrics.Result) {
@@ -142,7 +150,8 @@ func runServer(args []string) error {
 
 	nd := navidrome.New(ndURL, ndUser, ndPass)
 	providers := buildProviders()
-	proc := lyrics.NewProcessor(nd, providers, strings.Split(musicDir, ":"), dryRun)
+	transcribers := buildTranscribers()
+	proc := lyrics.NewProcessor(nd, providers, transcribers, strings.Split(musicDir, ":"), dryRun)
 
 	tmpls, err := handlers.ParseTemplates(web.FS)
 	if err != nil {
@@ -153,7 +162,8 @@ func runServer(args []string) error {
 		return fmt.Errorf("parse partials: %w", err)
 	}
 
-	h := handlers.New(nd, proc, tmpls, partials, "dev", providerNames(providers))
+	goscribeEnabled := os.Getenv("GOSCRIBE_URL") != ""
+	h := handlers.New(nd, proc, tmpls, partials, "dev", providerNames(providers), goscribeEnabled)
 
 	staticFS, err := fs.Sub(web.FS, "static")
 	if err != nil {
@@ -179,13 +189,17 @@ func runServer(args []string) error {
 	r.Get("/run/{id}/events", h.RunEvents)
 	r.Post("/sync", h.RunSync)
 	r.Get("/sync/{id}/events", h.SyncEvents)
+	r.Post("/transcribe/song", h.TranscribeSong)
+	r.Get("/transcribe/song/poll", h.TranscribeSongPoll)
+	r.Post("/transcribe/song/save", h.TranscribeSongSave)
+	r.Post("/transcribe/batch", h.TranscribeBatch)
+	r.Get("/transcribe/batch/{id}/events", h.TranscribeBatchEvents)
 	r.Get("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	log.Printf("listening on :%s", *port)
 	return http.ListenAndServe(":"+*port, r)
 }
-
 
 // runUpgrade walks all music directories and backfills SYLT frames into MP3
 // files that have TXXX:SYNCEDLYRICS but no SYLT (written by an older version).
@@ -243,7 +257,7 @@ func runSync(args []string) error {
 	musicDir := requireEnv("MUSIC_DIR")
 
 	nd := navidrome.New(ndURL, ndUser, ndPass)
-	proc := lyrics.NewProcessor(nd, nil, strings.Split(musicDir, ":"), false)
+	proc := lyrics.NewProcessor(nd, nil, nil, strings.Split(musicDir, ":"), false)
 
 	ctx := context.Background()
 	songs, err := nd.AllSongs(ctx)
