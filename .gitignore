@@ -5,3 +5,12 @@ coverage.html
 *.env
 tmp/
 *.lrc.tmp
+
+# Worktrees
+.worktrees/
+
+# Claude
+CLAUDE.md
+.claude/
+docs/superpowers
+docs/plans
