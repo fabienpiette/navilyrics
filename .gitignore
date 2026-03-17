@@ -12,5 +12,6 @@ tmp/
 # Claude
 CLAUDE.md
 .claude/
+.serena/
 docs/superpowers
 docs/plans
