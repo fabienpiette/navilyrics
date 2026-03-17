@@ -1,0 +1,7 @@
+<div id="transcribe-area" class="transcribe-area">
+  {{if .Error -}}
+  <span class="badge badge-error">error</span> <span class="muted">{{.Error}}</span>
+  {{- else -}}
+  <span class="badge badge-transcribed">{{.Message}}</span>
+  {{- end}}
+</div>

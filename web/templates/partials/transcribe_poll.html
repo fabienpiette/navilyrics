@@ -1,0 +1,7 @@
+<div id="transcribe-area" class="transcribe-area">
+  <span class="muted">Transcribing&#8230;</span>
+  <div hx-get="/transcribe/song/poll?song_id={{.SongID}}&amp;job_id={{.JobID}}&amp;attempt={{.Attempt}}"
+       hx-trigger="load delay:3s"
+       hx-target="#transcribe-area"
+       hx-swap="outerHTML"></div>
+</div>

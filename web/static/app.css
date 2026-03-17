@@ -96,6 +96,7 @@ tr:nth-child(even) td { background:rgba(128,128,128,.02); }
 .badge-error   { border-color:var(--error);   color:var(--error); }
 .badge-dry_run        { border-color:var(--muted);   color:var(--muted); }
 .badge-instrumental   { border-color:var(--muted);   color:var(--muted); }
+.badge-transcribed    { border-color:var(--fg);      color:var(--fg); }
 .badge-synced_lrc     { border-color:var(--success); color:var(--success); }
 .badge-synced_embedded { border-color:var(--success); color:var(--success); }
 

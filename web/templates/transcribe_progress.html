@@ -1,0 +1,76 @@
+{{define "title"}}navilyrics &#8212; transcribing&#8230;{{end}}
+
+{{define "content"}}
+<h2>Transcribe missing lyrics</h2>
+
+<div class="stats-grid" id="transcribe-summary" style="margin-bottom:1.5rem">
+    <div class="stat-cell"><div class="stat-num" id="cnt-transcribed">&#8212;</div><div class="stat-label">transcribed</div></div>
+    <div class="stat-cell"><div class="stat-num" id="cnt-errors">&#8212;</div><div class="stat-label">errors</div></div>
+</div>
+
+<div class="run-log-toolbar" id="transcribe-toolbar" style="display:none">
+    <div class="filter-pills">
+        <button class="filter-pill active" data-status="transcribed" onclick="toggleFilter(this,'transcribe-log')">transcribed</button>
+        <button class="filter-pill active" data-status="error"       onclick="toggleFilter(this,'transcribe-log')">errors</button>
+    </div>
+    <button class="btn secondary small" onclick="exportCSV('transcribe-log','transcribe_results.csv')">Export CSV</button>
+</div>
+
+<div class="run-log streaming"
+     hx-ext="sse"
+     sse-connect="/transcribe/batch/{{.RunID}}/events"
+     id="transcribe-log">
+    <div sse-swap="result" hx-swap="afterbegin" id="transcribe-log-inner"></div>
+    <div sse-swap="done"   hx-swap="none"       id="transcribe-done-trigger"></div>
+</div>
+
+<div class="form-actions" style="margin-top:1rem">
+    <button class="btn secondary" id="btn-scroll-top"
+            onclick="document.getElementById('transcribe-log').scrollTo({top:0,behavior:'smooth'})"
+            style="display:none" title="Scroll to top of log">&#8593; Top</button>
+</div>
+
+<script>
+function countUp(id, target) {
+    var el = document.getElementById(id);
+    if (!target) { el.textContent = '0'; return; }
+    var n = 0, inc = Math.max(1, Math.ceil(target / 40));
+    var t = setInterval(function() {
+        n = Math.min(n + inc, target);
+        el.textContent = n;
+        if (n >= target) clearInterval(t);
+    }, 16);
+}
+function toggleFilter(pill, logId) {
+    document.getElementById(logId).classList.toggle('hide-' + pill.dataset.status);
+    pill.classList.toggle('active');
+}
+function exportCSV(logId, filename) {
+    var rows = [['status','artist','title','error']];
+    document.getElementById(logId).querySelectorAll('.run-log-line[data-status]').forEach(function(el) {
+        rows.push([el.dataset.status||'', el.dataset.artist||'', el.dataset.title||'', el.dataset.err||'']);
+    });
+    var csv = rows.map(function(r) {
+        return r.map(function(v) { return '"' + v.replace(/"/g,'""') + '"'; }).join(',');
+    }).join('\n');
+    var a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+document.addEventListener('htmx:sseMessage', function(e) {
+    if (e.detail.type === 'result') {
+        document.getElementById('btn-scroll-top').style.display = '';
+        document.getElementById('transcribe-toolbar').style.display = 'flex';
+    }
+    if (e.detail.type === 'done') {
+        document.getElementById('transcribe-log').classList.remove('streaming');
+        try {
+            var d = JSON.parse(e.detail.data);
+            countUp('cnt-transcribed', d.transcribed);
+            countUp('cnt-errors',      d.errors);
+        } catch(ex) {}
+    }
+});
+</script>
+{{end}}
