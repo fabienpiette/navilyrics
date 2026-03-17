@@ -27,6 +27,7 @@ make run-cli      # batch CLI (dry-run by default)
 - **Web UI** — browse your library, filter by lyrics status, edit LRC files, run batch jobs, stream live progress
 - **CLI batch** — `navilyrics run` processes every missing song and triggers a Navidrome rescan when done
 - **Gap sync** — fills one-sided gaps: has `.lrc` but no tags? Tags get written. Has tags but no `.lrc`? Sidecar gets written.
+- **Audio transcription** — when no provider finds lyrics, transcribe the audio file via [goscribe](https://github.com/fabienpiette/goscribe); single-song preview-before-save or batch auto-save with live progress (requires `GOSCRIBE_URL`)
 
 ## Install
 
@@ -57,6 +58,7 @@ navilyrics serve [--port 8080]
 - **Dashboard** — library coverage stats
 - **Songs** — browse, search, and filter by lyrics status; edit LRC inline; fetch per-song from any provider
 - **Run** — batch-fetch missing lyrics for all songs or filtered results, with live SSE log
+- **Transcribe** — per-song transcription with editable preview; or "Transcribe missing" batch with live SSE progress (only shown when `GOSCRIBE_URL` is set)
 
 ### CLI batch
 
@@ -93,8 +95,9 @@ Walks all songs and fills one-sided lyrics gaps without re-fetching from provide
 cmd/navilyrics/     — binary entry point (serve / run / sync subcommands)
 pkg/navidrome/      — Navidrome REST client (JWT auth, song listing)
 pkg/lrclib/         — lrclib.net client (exact get + fuzzy search)
+pkg/goscribe/       — goscribe HTTP client (job submit + poll)
 pkg/tagger/         — audio tag read/write (MP3 ID3v2, FLAC Vorbis)
-internal/lyrics/    — Processor with worker pool, LRC writer
+internal/lyrics/    — Processor with worker pool, LRC writer, transcription
 internal/handlers/  — HTTP handlers (chi v5, html/template, HTMX)
 web/                — embedded templates and static assets
 ```
@@ -103,4 +106,4 @@ web/                — embedded templates and static assets
 
 ## License
 
-[MIT](LICENSE)
+[AGPL-3.0](LICENSE)

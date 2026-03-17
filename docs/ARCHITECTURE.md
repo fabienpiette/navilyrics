@@ -10,7 +10,9 @@ fetches lyrics for songs that don't have them, then writes the result in two
 places: a `.lrc` sidecar file alongside the audio file on disk, and embedded
 `LYRICS`/`SYNCEDLYRICS` tags directly inside the audio file. When done, it
 triggers a Navidrome library rescan so the new lyrics become visible without
-manual intervention.
+manual intervention. As a fallback for songs that no provider covers,
+navilyrics can transcribe the audio file to plain-text lyrics via an external
+[goscribe](https://github.com/fabienpiette/goscribe) service.
 
 The system has two runtime modes. The **CLI batch mode** (`navilyrics run`)
 lists every song in Navidrome, processes all missing ones through a worker
@@ -66,6 +68,16 @@ from the chain at startup.
 
 Key file: `client.go`.
 
+### `pkg/goscribe/`
+
+HTTP client for an external goscribe audio-transcription service. Submits an
+audio file as a multipart upload (`POST /jobs`), receives a job ID, then polls
+`GET /jobs/{id}` at a configurable interval until the job completes or fails.
+The upload uses `io.Pipe` to stream the file without buffering it fully in
+memory.
+
+Key file: `client.go` (`Client`, `SubmitJob`, `PollJob`, `checkJob`).
+
 ### `pkg/tagger/`
 
 Reads and writes `LYRICS`, `SYNCEDLYRICS`, and `NAVILYRICS_INSTRUMENTAL` tags
@@ -92,6 +104,13 @@ Key files:
 - `writer.go` — `writeLyrics` (sidecar + tag embed), `WriteLRCFile` (atomic
   write via temp-file rename), instrumental tag helpers.
 - `sync.go` — `SyncSong` and `SyncAll` for gap-fill runs.
+- `transcribers.go` — `Transcriber` interface and `goscribeTranscriber`
+  adapter. Mirrors the `Provider` pattern but takes an audio file path instead
+  of song metadata.
+- `transcribe.go` — `TranscribeSong` (single song, returns audio path +
+  transcript), `TranscribeAll` (batch with a worker pool of 2 — intentionally
+  half the fetch pool to avoid saturating goscribe), `transcribeOne`
+  (per-song helper with a 5-minute context deadline).
 
 **Architecture Invariant:** `internal/lyrics/` is the only package in this
 repo that imports from multiple `pkg/` packages. No other `internal/` package
@@ -112,6 +131,12 @@ Key files:
 - `songs.go` — songs page, song fetch, LRC save, tag editor.
 - `run_progress.go`, `run_sync.go` — batch run and gap-fill sync handlers with
   SSE streaming.
+- `transcribe.go` — five handlers for the transcription flow: `TranscribeSong`
+  (submits job, returns poll partial), `TranscribeSongPoll` (server-driven
+  HTMX polling with attempt counter), `TranscribeSongSave` (saves approved
+  transcript), `TranscribeBatch` / `TranscribeBatchEvents` (batch SSE stream
+  reusing `RunStore`). In-flight single-song jobs are tracked in a
+  package-level `sync.Map`.
 - `dashboard.go` — coverage stats with a short-lived in-memory cache.
 - `lrc.go`, `tags.go` — LRC editor and tag editor handlers.
 
@@ -161,6 +186,11 @@ constructs the slice once. `Processor.FetchLyricsOnly` tries providers in
 slice order and returns on the first hit. There is no runtime provider
 switching outside of the per-song `filter` parameter used by the fetch handler.
 
+**Transcription is never automatic.** goscribe is not part of the `Provider`
+chain and is never called by `ProcessSong` or `Run`. It is only invoked by
+explicit user action — the per-song "Transcribe" button or the "Transcribe
+missing" batch trigger in the web UI.
+
 **`navidrome.Client` token access is always under a mutex.** The token field
 and its expiry are read and written only while holding `Client.mu`. This
 prevents data races when the worker pool and the HTTP handler goroutines share
@@ -179,8 +209,9 @@ prefix convention is the only schema.
 
 **Concurrency.** `Run`/`RunSongs`/`SyncAll` each create a fixed-size worker
 pool (4 goroutines) using a buffered jobs channel and a `sync.WaitGroup`.
-Background SSE goroutines communicate through `RunStore` channels. The stats
-cache uses a `sync.RWMutex` for concurrent reads.
+`TranscribeAll` uses a pool of 2 to avoid saturating the goscribe service with
+concurrent uploads. Background SSE goroutines communicate through `RunStore`
+channels. The stats cache uses a `sync.RWMutex` for concurrent reads.
 
 **Configuration.** All config comes from environment variables read at startup
 in `main.go`. There is no config file. Required variables cause a fatal log
