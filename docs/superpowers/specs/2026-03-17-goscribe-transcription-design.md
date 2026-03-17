@@ -37,7 +37,7 @@ func (c *Client) SubmitJob(ctx context.Context, audioPath string) (string, error
 
 // PollJob polls GET /jobs/{id} with the given interval until the job
 // reaches completed or failed status, or ctx is cancelled.
-func (c *Client) PollJob(ctx context.Context, jobID string, interval time.Duration) (transcript string, error)
+func (c *Client) PollJob(ctx context.Context, jobID string, interval time.Duration) (string, error)
 ```
 
 `SubmitJob` sends a multipart `POST /jobs` with the audio file as the `file` field.
@@ -68,7 +68,11 @@ The `goscribeTranscriber.Transcribe` calls `SubmitJob` then `PollJob`.
 func NewProcessor(nd *navidrome.Client, providers []Provider, transcribers []Transcriber, musicDirs []string, dryRun bool) *Processor
 ```
 
-Two new methods:
+All existing call sites of `NewProcessor` in `cmd/navilyrics/main.go` and processor tests must be updated to pass `nil` (or an empty slice) for `transcribers`.
+
+### New: `internal/lyrics/transcribe.go`
+
+Mirrors `sync.go` in placement. Contains two methods on `Processor`:
 
 ```go
 // TranscribeSong resolves the audio path and calls the first configured
@@ -77,7 +81,8 @@ Two new methods:
 func (p *Processor) TranscribeSong(ctx context.Context, song navidrome.Song) (audioPath, transcript string, err error)
 
 // TranscribeAll runs TranscribeSong for every song in the list with a
-// worker pool of 2 (goscribe handles its own async processing).
+// worker pool of 2 (intentionally lower than the sync pool of 4 to avoid
+// saturating the goscribe service with concurrent uploads).
 // On success each song is saved automatically via SaveLyrics.
 // progress is called once per result (may be called from any goroutine).
 func (p *Processor) TranscribeAll(ctx context.Context, songs []navidrome.Song, progress func(Result)) error
@@ -108,11 +113,14 @@ User clicks "Transcribe" on a song row
       Submits job to goscribe (SubmitJob)
       Returns transcribe_poll.html partial (job_id + song_id embedded)
 
-transcribe_poll.html polls every 3s:
-  → GET /transcribe/song/poll?job_id=xxx&song_id=yyy
-      If queued/processing: return same polling partial (HTMX re-triggers)
+transcribe_poll.html polls every 3s (up to 100 polls ≈ 5 min max via a server-driven counter):
+  → GET /transcribe/song/poll?job_id=xxx&song_id=yyy&attempt=N
+      The server reads attempt N, increments it to N+1, and embeds N+1 in the
+      returned polling partial's hx-get URL — no client-side JS needed.
+      If queued/processing and attempt < 100: return polling partial with attempt=N+1
+      If attempt >= 100:    return timeout error partial (stops polling)
       If completed:         return transcript_preview.html partial
-      If failed:            return error partial
+      If failed:            return error partial (body from goscribe job error field)
 
 transcript_preview.html shows:
   - Editable <textarea> with transcript text
@@ -129,13 +137,18 @@ POST /transcribe/song/save  (song_id + transcript)
 ```
 User clicks "Transcribe all missing"
   → POST /transcribe/batch
-      Fetches all songs with HasLyrics=false
-      Starts background TranscribeAll goroutine
-      Renders transcribe_progress.html (SSE page)
+      Calls allMatchingSongs(ctx, "", "missing") — reuses existing helper
+      Generates a run ID (same pattern as RunSync: fmt.Sprintf("%x", time.Now().UnixNano()))
+      Starts background TranscribeAll goroutine (keyed by run ID in the existing RunStore —
+      same store used by RunSync; no collision risk since IDs are time-based UUIDs)
+      Renders transcribe_progress.html with RunID embedded so the template can
+      construct the SSE URL: GET /transcribe/batch/{id}/events
 
 GET /transcribe/batch/{id}/events  (SSE)
-  Streams one Result event per song
-  On completion fires Navidrome scan (same as RunSync)
+  Streams one "result" event per song (same HTML partial format as RunSync)
+  On completion fires a "done" event:
+    {"transcribed":N,"errors":N}
+  Then fires Navidrome scan if transcribed > 0 (same as RunSync)
 ```
 
 ---
@@ -144,7 +157,7 @@ GET /transcribe/batch/{id}/events  (SSE)
 
 ### `songs_rows.html` partial
 
-Each song row without lyrics gains a "Transcribe" button, rendered only when `GoscribeEnabled` is true in template data. The button targets an inline panel below/beside the row via HTMX swap.
+Each song row where `HasLyrics=false` and `Instrumental=false` gains a "Transcribe" button, rendered only when `GoscribeEnabled` is true in template data. The button targets an inline panel below/beside the row via HTMX swap.
 
 ### `songs.html` page
 
@@ -197,7 +210,8 @@ r.Get("/transcribe/batch/{id}/events",  h.TranscribeBatchEvents)
 
 - `GOSCRIBE_URL` unset → feature absent, no error on startup
 - goscribe unreachable at job submission → HTTP 502 with error partial in UI
-- `PollJob` timeout (default 5 min via context deadline on the handler) → error partial
+- Single-song poll timeout: after 100 poll attempts (≈5 min at 3s interval), HTMX stops and shows timeout error partial
+- Batch `TranscribeAll`: per-song transcription uses a 5-min context deadline on the `Transcribe` call
 - Audio file not found on disk → error partial (song_id with no resolved path)
 - `TranscribeAll` continues past per-song errors, emits `Result{Status:"error"}` per failure
 
@@ -218,7 +232,9 @@ r.Get("/transcribe/batch/{id}/events",  h.TranscribeBatchEvents)
 | `pkg/goscribe/client.go` | New |
 | `pkg/goscribe/client_test.go` | New |
 | `internal/lyrics/transcribers.go` | New |
-| `internal/lyrics/processor.go` | Add `transcribers` field + 2 methods |
+| `internal/lyrics/processor.go` | Add `transcribers` field; update `NewProcessor` signature |
+| `internal/lyrics/transcribe.go` | New — `TranscribeSong` + `TranscribeAll` methods |
+| `internal/lyrics/processor_test.go` | Update `NewProcessor` call sites to pass `nil` transcribers |
 | `internal/handlers/transcribe.go` | New |
 | `internal/handlers/handler.go` | Add `goscribeEnabled` field |
 | `internal/handlers/songs.go` | Add `GoscribeEnabled` to template data |
