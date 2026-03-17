@@ -523,14 +523,15 @@ document.addEventListener('htmx:afterSettle', function(e) {
 
 // Update the hidden song_id input used by the Transcribe HTMX button,
 // and reset the transcription area when switching songs.
-var _origPreviewSong = previewSong;
-function previewSong(id, row) {
-  var tsi = document.getElementById('transcribe-song-id');
-  if (tsi) { tsi.value = id; }
-  var ta = document.getElementById('transcribe-area');
-  if (ta) { while (ta.firstChild) ta.removeChild(ta.firstChild); }
-  _origPreviewSong(id, row);
-}
+previewSong = (function(orig) {
+  return function(id, row) {
+    var tsi = document.getElementById('transcribe-song-id');
+    if (tsi) { tsi.value = id; }
+    var ta = document.getElementById('transcribe-area');
+    if (ta) { while (ta.firstChild) ta.removeChild(ta.firstChild); }
+    orig(id, row);
+  };
+}(previewSong));
 // clearTranscribeArea is called by the Discard button in transcript_preview.html
 function clearTranscribeArea() {
   var el = document.getElementById('transcribe-area');
