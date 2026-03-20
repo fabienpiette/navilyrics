@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -50,6 +51,7 @@ type pollResponse struct {
 }
 
 func (c *Client) SubmitJob(ctx context.Context, audioPath string, opts JobOptions) (string, error) {
+	log.Printf("goscribe: submitting %s (song_mode=%v)", filepath.Base(audioPath), opts.Song)
 	f, err := os.Open(audioPath)
 	if err != nil {
 		return "", fmt.Errorf("goscribe: open audio: %w", err)
@@ -98,6 +100,7 @@ func (c *Client) SubmitJob(ctx context.Context, audioPath string, opts JobOption
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("goscribe: decode submit response: %w", err)
 	}
+	log.Printf("goscribe: job %s queued", result.JobID)
 	return result.JobID, nil
 }
 
@@ -105,14 +108,19 @@ func (c *Client) PollJob(ctx context.Context, jobID string, interval time.Durati
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	lastStatus := ""
 	for {
 		select {
 		case <-ctx.Done():
 			return "", fmt.Errorf("goscribe: poll job %s: %w", jobID, ctx.Err())
 		case <-ticker.C:
-			transcript, done, err := c.checkJob(ctx, jobID)
+			transcript, status, done, err := c.checkJob(ctx, jobID)
 			if err != nil {
 				return "", err
+			}
+			if status != lastStatus {
+				log.Printf("goscribe: job %s → %s", jobID, status)
+				lastStatus = status
 			}
 			if done {
 				return transcript, nil
@@ -121,25 +129,26 @@ func (c *Client) PollJob(ctx context.Context, jobID string, interval time.Durati
 	}
 }
 
-func (c *Client) checkJob(ctx context.Context, jobID string) (string, bool, error) {
+// checkJob polls a single job status. Returns (transcript, status, done, err).
+func (c *Client) checkJob(ctx context.Context, jobID string) (string, string, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/jobs/"+jobID, nil)
 	if err != nil {
-		return "", false, fmt.Errorf("goscribe: build poll request: %w", err)
+		return "", "", false, fmt.Errorf("goscribe: build poll request: %w", err)
 	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", false, fmt.Errorf("goscribe: poll job: %w", err)
+		return "", "", false, fmt.Errorf("goscribe: poll job: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", false, fmt.Errorf("goscribe: poll job: status %d", resp.StatusCode)
+		return "", "", false, fmt.Errorf("goscribe: poll job: status %d", resp.StatusCode)
 	}
 
 	var result pollResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", false, fmt.Errorf("goscribe: decode poll response: %w", err)
+		return "", "", false, fmt.Errorf("goscribe: decode poll response: %w", err)
 	}
 
 	switch result.Status {
@@ -147,12 +156,14 @@ func (c *Client) checkJob(ctx context.Context, jobID string) (string, bool, erro
 		// When song mode is used, prefer the AI-validated cleaned lyrics over
 		// the raw transcript, but only when confidence is high enough (≥60).
 		if v := result.LyricsValidation; v != nil && v.CleanedLyrics != "" && v.Confidence >= 60 {
-			return v.CleanedLyrics, true, nil
+			log.Printf("goscribe: job %s using validated lyrics (confidence=%.0f)", jobID, v.Confidence)
+			return v.CleanedLyrics, result.Status, true, nil
 		}
-		return result.Transcript, true, nil
+		log.Printf("goscribe: job %s using raw transcript", jobID)
+		return result.Transcript, result.Status, true, nil
 	case "failed":
-		return "", false, fmt.Errorf("goscribe: job %s failed: %s", jobID, result.Error)
+		return "", result.Status, false, fmt.Errorf("goscribe: job %s failed: %s", jobID, result.Error)
 	default:
-		return "", false, nil
+		return "", result.Status, false, nil
 	}
 }

@@ -18,10 +18,12 @@ func (p *Processor) TranscribeSong(ctx context.Context, song navidrome.Song) (au
 	if audioPath == "" {
 		return "", "", fmt.Errorf("audio file not found in any music dir: %s", song.Path)
 	}
+	log.Printf("transcribe: %s — %s via %s", song.Artist, song.Title, p.transcribers[0].Name())
 	transcript, err = p.transcribers[0].Transcribe(ctx, audioPath)
 	if err != nil {
 		return audioPath, "", fmt.Errorf("transcribe %q: %w", song.Title, err)
 	}
+	log.Printf("transcribe: %s — %s done (%d chars)", song.Artist, song.Title, len(transcript))
 	return audioPath, transcript, nil
 }
 
