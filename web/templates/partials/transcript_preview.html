@@ -2,7 +2,8 @@
   <label style="font-size:.75rem;color:var(--muted)">Transcript — review and edit before saving:</label>
   <form hx-post="/transcribe/song/save"
         hx-target="#transcribe-area"
-        hx-swap="outerHTML">
+        hx-swap="outerHTML"
+        hx-on::after-request="if(event.detail.successful && _currentSongId) _loadLRC(_currentSongId)">
     <input type="hidden" name="song_id" value="{{.SongID}}">
     <textarea name="transcript" rows="8"
               style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.8rem;resize:vertical">{{.Transcript}}</textarea>
