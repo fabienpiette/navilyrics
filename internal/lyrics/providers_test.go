@@ -51,7 +51,7 @@ func TestFetchLyricsOnly_filterByProvider(t *testing.T) {
 	a := &stubProvider{name: "a", result: lyrics.ProviderResult{PlainLyrics: "from a"}, ok: true}
 	b := &stubProvider{name: "b", result: lyrics.ProviderResult{PlainLyrics: "from b"}, ok: true}
 
-	proc := lyrics.NewProcessor(nil, []lyrics.Provider{a, b}, nil, false)
+	proc := lyrics.NewProcessor(nil, []lyrics.Provider{a, b}, nil, nil, false)
 
 	// Filter to "b" only — "a" must not be called.
 	song := navidrome.Song{ID: "1", Title: "T", Artist: "A"}
@@ -69,7 +69,7 @@ func TestFetchLyricsOnly_filterByProvider(t *testing.T) {
 
 func TestFetchLyricsOnly_unknownFilterReturnsNotFound(t *testing.T) {
 	a := &stubProvider{name: "a", ok: true}
-	proc := lyrics.NewProcessor(nil, []lyrics.Provider{a}, nil, false)
+	proc := lyrics.NewProcessor(nil, []lyrics.Provider{a}, nil, nil, false)
 
 	song := navidrome.Song{ID: "1", Title: "T", Artist: "A"}
 	result := proc.FetchLyricsOnly(context.Background(), song, []string{"nonexistent"})
@@ -84,7 +84,7 @@ func TestFetchLyricsOnly_unknownFilterReturnsNotFound(t *testing.T) {
 func TestFetchLyricsOnly_nilFilterUsesAll(t *testing.T) {
 	a := &stubProvider{name: "a", ok: false}
 	b := &stubProvider{name: "b", result: lyrics.ProviderResult{PlainLyrics: "from b"}, ok: true}
-	proc := lyrics.NewProcessor(nil, []lyrics.Provider{a, b}, nil, false)
+	proc := lyrics.NewProcessor(nil, []lyrics.Provider{a, b}, nil, nil, false)
 
 	song := navidrome.Song{ID: "1", Title: "T", Artist: "A"}
 	result := proc.FetchLyricsOnly(context.Background(), song, nil)

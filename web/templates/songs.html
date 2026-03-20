@@ -41,6 +41,12 @@
         <input type="hidden" name="filter" value="">
         <button type="submit" class="btn secondary small" title="Fill lyrics gaps for songs matching the current search and filter">Sync gaps</button>
       </form>
+      {{if .GoscribeEnabled}}
+      <form method="post" action="/transcribe/batch">
+        <button type="submit" class="btn secondary small"
+                title="Transcribe audio for all songs without lyrics">Transcribe missing</button>
+      </form>
+      {{end}}
     </div>
   </div>
 </div>
@@ -86,6 +92,12 @@
           <button class="action-btn" id="btn-fetch"   onclick="showSearchForm()" title="Search lyrics providers for this song">Find lyrics</button>
           <button class="action-btn" id="btn-edit"    onclick="editLRC()" title="Manually edit the LRC file">Edit</button>
           <button class="action-btn" id="btn-tags"    onclick="showTagsForm()" title="Edit song metadata tags (title, artist, album, year…)">Tags</button>
+          {{if .GoscribeEnabled}}<button class="action-btn" id="btn-transcribe"
+            hx-post="/transcribe/song"
+            hx-target="#transcribe-area"
+            hx-swap="outerHTML"
+            hx-include="#transcribe-song-id"
+            title="Transcribe audio using AI">Transcribe</button>{{end}}
           <button class="action-btn" id="btn-save"    onclick="saveLRC()"              style="display:none" title="Save your edits to disk">Save</button>
           <button class="action-btn" id="btn-cancel"  onclick="cancelEdit()"           style="display:none" title="Discard edits and restore the original">Cancel</button>
           <button class="action-btn" id="btn-confirm" onclick="saveFetchedLyrics()"    style="display:none" title="Write found lyrics to disk">Save lyrics</button>
@@ -139,6 +151,10 @@
         </div>
       </div>
       <pre class="preview-lrc placeholder" id="preview-lrc">Select a song to preview its lyrics.</pre>
+      {{if .GoscribeEnabled}}
+      <input type="hidden" id="transcribe-song-id" name="song_id" value="">
+      <div id="transcribe-area"></div>
+      {{end}}
     </div>
   </aside>
 </div>
@@ -504,5 +520,25 @@ document.addEventListener('htmx:afterSettle', function(e) {
     if (_selectedRow && !document.body.contains(_selectedRow)) closePreview();
   }
 });
+
+// Update the hidden song_id input used by the Transcribe HTMX button,
+// and reset the transcription area when switching songs.
+previewSong = (function(orig) {
+  return function(id, row) {
+    var tsi = document.getElementById('transcribe-song-id');
+    if (tsi) { tsi.value = id; }
+    var ta = document.getElementById('transcribe-area');
+    if (ta) { while (ta.firstChild) ta.removeChild(ta.firstChild); }
+    orig(id, row);
+  };
+}(previewSong));
+// clearTranscribeArea is called by the Discard button in transcript_preview.html
+function clearTranscribeArea() {
+  var el = document.getElementById('transcribe-area');
+  if (!el) return;
+  var empty = document.createElement('div');
+  empty.id = 'transcribe-area';
+  el.parentNode.replaceChild(empty, el);
+}
 </script>
 {{end}}

@@ -40,11 +40,18 @@ func TestWriteLyrics_withSynced_mp3(t *testing.T) {
 
 func TestWriteLyrics_noSynced_mp3(t *testing.T) {
 	audioPath := minimalMP3(t)
-	if err := writeLyrics(audioPath, "plain only", ""); err != nil {
+	const plain = "plain only"
+	if err := writeLyrics(audioPath, plain, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(lrcPathFor(audioPath)); !os.IsNotExist(err) {
-		t.Error("lrc file should not be created when synced is empty")
+	// Plain lyrics should be written to the .lrc sidecar so they override
+	// any stale embedded SYNCEDLYRICS when SongLRC reads the file.
+	got, err := os.ReadFile(lrcPathFor(audioPath))
+	if err != nil {
+		t.Fatalf("lrc file should be created for plain-only lyrics: %v", err)
+	}
+	if string(got) != plain {
+		t.Errorf("lrc = %q, want %q", got, plain)
 	}
 }
 

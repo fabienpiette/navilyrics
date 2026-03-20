@@ -29,17 +29,19 @@ type Result struct {
 
 // Processor fetches and writes lyrics for Navidrome songs.
 type Processor struct {
-	nd        *navidrome.Client // may be nil in tests
-	providers []Provider
-	musicDirs []string
-	dryRun    bool
+	nd           *navidrome.Client
+	providers    []Provider
+	transcribers []Transcriber
+	musicDirs    []string
+	dryRun       bool
 }
 
 // NewProcessor creates a Processor. nd may be nil when using ProcessSong directly.
 // musicDirs is a list of base directories to search for audio files; the first
 // directory containing the relative song path is used.
-func NewProcessor(nd *navidrome.Client, providers []Provider, musicDirs []string, dryRun bool) *Processor {
-	return &Processor{nd: nd, providers: providers, musicDirs: musicDirs, dryRun: dryRun}
+// transcribers is the list of audio transcription backends; nil is valid.
+func NewProcessor(nd *navidrome.Client, providers []Provider, transcribers []Transcriber, musicDirs []string, dryRun bool) *Processor {
+	return &Processor{nd: nd, providers: providers, transcribers: transcribers, musicDirs: musicDirs, dryRun: dryRun}
 }
 
 // resolveAudioPath finds the first musicDir where song.Path exists on disk.

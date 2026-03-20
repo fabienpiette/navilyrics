@@ -10,8 +10,9 @@ services:
       NAVIDROME_PASS: ${NAVIDROME_PASS}
       MUSIC_DIR: /music-clean:/music-data
       DRY_RUN: ${DRY_RUN:-false}
-      GOSCRIBE_URL: ${GOSCRIBE_URL:-}
-      NAVILYRICS_URL: ${NAVILYRICS_URL:-}
+      GOSCRIBE_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - music-clean:/music-clean
       - music-data:/music-data

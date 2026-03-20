@@ -33,8 +33,14 @@ func WriteLRCFile(audioPath, synced string) error {
 // Tag embedding failure is a soft error: the .lrc sidecar is kept and a warning is
 // logged, because the sidecar alone is sufficient for Navidrome to read lyrics.
 func writeLyrics(audioPath, plain, synced string) error {
-	if synced != "" {
-		if err := WriteLRCFile(audioPath, synced); err != nil {
+	// Write .lrc sidecar: use synced (with timestamps) when available, fall
+	// back to plain so the sidecar always overrides stale embedded SYNCEDLYRICS.
+	lrcContent := synced
+	if lrcContent == "" {
+		lrcContent = plain
+	}
+	if lrcContent != "" {
+		if err := WriteLRCFile(audioPath, lrcContent); err != nil {
 			return err
 		}
 	}
