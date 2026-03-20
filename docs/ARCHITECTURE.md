@@ -18,14 +18,19 @@ The system has two runtime modes. The **CLI batch mode** (`navilyrics run`)
 lists every song in Navidrome, processes all missing ones through a worker
 pool of four goroutines, and exits. The **web server** (`navilyrics serve`)
 exposes a UI for browsing the library, fetching lyrics for individual songs,
-editing LRC files inline, and launching batch runs or gap-fill syncs with
-live SSE progress. Both modes share the same `Processor` and the same write
-path.
+editing LRC files inline, editing audio metadata tags, and launching batch
+runs or gap-fill syncs with live SSE progress. Both modes share the same
+`Processor` and the same write path.
 
 A **gap-fill sync** (`navilyrics sync`) handles the case where one side is
 already present without a full re-fetch: a song with a `.lrc` but no embedded
 tags gets its tags written; a song with embedded tags but no `.lrc` gets a
 sidecar written. This covers files imported from other tools.
+
+When goscribe transcription is used, navilyrics can optionally receive
+job status updates via webhook (`POST /webhook/goscribe/{songID}`) rather
+than waiting for its poll interval. The poll loop runs in parallel as a
+fallback; whichever delivers the result first wins.
 
 ## Code Map
 
@@ -35,8 +40,8 @@ orchestration in the middle, HTTP layer last.
 ### `pkg/navidrome/`
 
 Navidrome REST API client. Authenticates with username/password, stores a JWT
-token under a mutex, and exposes `AllSongs` (paginated song listing) and
-`TriggerScan`.
+token under a mutex, and exposes `AllSongs` (paginated song listing),
+`GetSong` (single-song fetch), and `TriggerScan`.
 
 Key files: `client.go` (JWT auth, `Do` helper), `songs.go` (song listing),
 `types.go` (`Song` struct with all metadata fields).
@@ -49,7 +54,7 @@ Key files: `client.go` (JWT auth, `Do` helper), `songs.go` (song listing),
 HTTP client for [lrclib.net](https://lrclib.net). Implements an exact `Get`
 (artist + title + album + duration) and a fuzzy `Search` (artist + title
 + ±5 s duration tolerance). The exact path is tried first; fuzzy is the
-fallback.
+fallback. All HTTP calls log request timing.
 
 Key file: `client.go`.
 
@@ -71,21 +76,39 @@ Key file: `client.go`.
 ### `pkg/goscribe/`
 
 HTTP client for an external goscribe audio-transcription service. Submits an
-audio file as a multipart upload (`POST /jobs`), receives a job ID, then polls
-`GET /jobs/{id}` at a configurable interval until the job completes or fails.
-The upload uses `io.Pipe` to stream the file without buffering it fully in
-memory.
+audio file as a multipart upload (`POST /jobs`), receives a job ID, then
+waits for completion via two parallel mechanisms: an HTTP poll loop
+(`GET /jobs/{id}`) and an in-memory results map pre-populated by the webhook
+handler. Whichever delivers the result first wins.
 
-Key file: `client.go` (`Client`, `SubmitJob`, `PollJob`, `checkJob`).
+`JobOptions` controls two optional submission parameters: `Song bool` enables
+goscribe's song mode (demucs vocal extraction + AI lyrics validation), and
+`CallbackURL string` registers a webhook URL for goscribe to push status
+updates. `extractTranscript` picks the best available text from a completed
+job: validated `cleaned_lyrics` when confidence ≥ 60, raw Whisper transcript
+otherwise.
+
+All HTTP calls log timing. `PollJob` tracks the last-seen status string and
+logs only on transitions, not every tick.
+
+Key file: `client.go` (`Client`, `SubmitJob`, `PollJob`, `NotifyResult`,
+`checkJob`, `extractTranscript`).
 
 ### `pkg/tagger/`
 
-Reads and writes `LYRICS`, `SYNCEDLYRICS`, and `NAVILYRICS_INSTRUMENTAL` tags
-directly in audio files. Supports MP3 (ID3v2 via bogem/id3v2) and FLAC
-(Vorbis comments via mewkiz/flac). Dispatches on file extension via `ForFile`.
+Reads and writes `LYRICS`, `SYNCEDLYRICS`, `NAVILYRICS_INSTRUMENTAL`, and
+general metadata tags directly in audio files. Supports MP3 (ID3v2 via
+bogem/id3v2) and FLAC (Vorbis comments via mewkiz/flac). Dispatches on file
+extension via `ForFile`.
+
+`SongMeta` covers all standard fields: Title, Artist, Album, AlbumArtist,
+Year, TrackNumber, DiscNumber, Genre, Composer, Comment. The COMM frame for
+MP3 uses a `CommentFrame` struct (language + description + text), not a plain
+text frame.
 
 Key files: `tagger.go` (`Tagger` interface, `ForFile` dispatch), `mp3.go`,
-`flac.go`, `repair.go` (mp3val-based ID3v2 frame repair for malformed files).
+`flac.go`, `meta.go` (`SongMeta`, `ReadMeta`, `WriteMeta`), `repair.go`
+(mp3val-based ID3v2 frame repair for malformed files).
 
 **Architecture Invariant:** this package never imports `internal/`.
 
@@ -99,14 +122,16 @@ Key files:
 - `providers.go` — `Provider` interface and thin wrappers adapting each `pkg/`
   client to that interface. All three providers live here.
 - `processor.go` — `Processor` struct; `ProcessSong`, `Run`/`RunSongs`, and
-  the `resolveAudioPath` helper that maps Navidrome's relative paths to
+  the `ResolveAudioPath` helper that maps Navidrome's relative paths to
   absolute on-disk paths by probing `musicDirs` in order.
 - `writer.go` — `writeLyrics` (sidecar + tag embed), `WriteLRCFile` (atomic
-  write via temp-file rename), instrumental tag helpers.
+  write via temp-file rename), instrumental tag helpers. The `.lrc` sidecar
+  is always written for any non-empty lyrics content — plain text is used as
+  the sidecar when no synced lyrics are available.
 - `sync.go` — `SyncSong` and `SyncAll` for gap-fill runs.
 - `transcribers.go` — `Transcriber` interface and `goscribeTranscriber`
-  adapter. Mirrors the `Provider` pattern but takes an audio file path instead
-  of song metadata.
+  adapter. Mirrors the `Provider` pattern but takes an audio file path
+  instead of song metadata. The `song bool` field enables goscribe song mode.
 - `transcribe.go` — `TranscribeSong` (single song, returns audio path +
   transcript), `TranscribeAll` (batch with a worker pool of 2 — intentionally
   half the fetch pool to avoid saturating goscribe), `transcribeOne`
@@ -119,9 +144,10 @@ does so.
 ### `internal/handlers/`
 
 HTTP handlers for the web UI. `Handler` holds a `navidrome.Client`, a
-`*Processor`, and pre-parsed template maps. All pages render through
-`base.html`; partial responses for HTMX swap targets are rendered without the
-base wrapper.
+`*Processor`, a `*goscribe.Client` (nil when `GOSCRIBE_URL` is unset), a
+`selfURL` string for building webhook callback URLs, and pre-parsed template
+maps. All pages render through `base.html`; partial responses for HTMX swap
+targets are rendered without the base wrapper.
 
 Key files:
 - `handler.go` — `Handler` struct, `New`, `render`/`renderPartial`, template
@@ -129,14 +155,16 @@ Key files:
 - `runstore.go` — `RunStore`: a mutex-protected map from run ID to
   `chan lyrics.Result`, used to wire background goroutines to SSE streams.
 - `songs.go` — songs page, song fetch, LRC save, tag editor.
-- `run_progress.go`, `run_sync.go` — batch run and gap-fill sync handlers with
-  SSE streaming.
-- `transcribe.go` — five handlers for the transcription flow: `TranscribeSong`
-  (submits job, returns poll partial), `TranscribeSongPoll` (server-driven
+- `run_progress.go`, `run_sync.go` — batch run and gap-fill sync handlers
+  with SSE streaming.
+- `transcribe.go` — six handlers for the transcription flow: `TranscribeSong`
+  (validates song, returns poll partial), `TranscribeSongPoll` (server-driven
   HTMX polling with attempt counter), `TranscribeSongSave` (saves approved
   transcript), `TranscribeBatch` / `TranscribeBatchEvents` (batch SSE stream
-  reusing `RunStore`). In-flight single-song jobs are tracked in a
-  package-level `sync.Map`.
+  reusing `RunStore`), and `GoscribeWebhook` (receives goscribe push
+  notifications and pre-populates the goscribe client's results map so the
+  next poll tick returns immediately). In-flight single-song jobs are tracked
+  in a package-level `sync.Map`.
 - `dashboard.go` — coverage stats with a short-lived in-memory cache.
 - `lrc.go`, `tags.go` — LRC editor and tag editor handlers.
 
@@ -160,6 +188,12 @@ graph (`navidrome.Client` → `[]Provider` → `Processor`), builds the chi
 router, and starts the server or runs the CLI. The `buildProviders` function
 is the only place the provider order (lrclib → netease → genius) is decided.
 
+When `GOSCRIBE_URL` is set, a `*goscribe.Client` is constructed at the top
+level and shared between `Processor` (for batch transcription) and `Handler`
+(for per-song UI flows). When `NAVILYRICS_URL` is also set, the webhook route
+`POST /webhook/goscribe/{songID}` is registered and the callback URL is
+derived from `NAVILYRICS_URL` at job-submission time.
+
 Key file: `main.go`.
 
 ## Invariants
@@ -176,6 +210,12 @@ packages.** Handlers and the CLI reach lyrics functionality only through
 write to a `.tmp` sibling first, then `os.Rename`. A crash mid-write leaves a
 `.tmp` orphan rather than a corrupt `.lrc`.
 
+**`.lrc` is always written for any non-empty lyrics.** When no synced lyrics
+are available, `writeLyrics` falls back to writing plain text into the `.lrc`
+sidecar. This prevents stale embedded `SYNCEDLYRICS` tags from shadowing newer
+plain-only `LYRICS` tags on subsequent reads, since `SongLRC` prefers the
+sidecar over embedded tags.
+
 **Tag embed failures are soft errors.** If tag writing fails (unsupported
 format, malformed ID3v2 frames that survive repair), `writeLyrics` logs a
 warning and returns `nil`. The `.lrc` sidecar alone is sufficient for
@@ -191,6 +231,12 @@ chain and is never called by `ProcessSong` or `Run`. It is only invoked by
 explicit user action — the per-song "Transcribe" button or the "Transcribe
 missing" batch trigger in the web UI.
 
+**Webhook delivery is best-effort.** `startTranscribeJob` always starts a
+`PollJob` loop (at 10s intervals) alongside the webhook path. If the webhook
+never arrives, polling ensures the job completes. If the webhook arrives
+first, `NotifyResult` stores the result and `PollJob` returns on the next
+tick. The two paths converge on the same `transcribeJobs` sync.Map entry.
+
 **`navidrome.Client` token access is always under a mutex.** The token field
 and its expiry are read and written only while holding `Client.mu`. This
 prevents data races when the worker pool and the HTTP handler goroutines share
@@ -203,15 +249,19 @@ err)`. External I/O errors (Navidrome, providers, disk) propagate up to the
 caller. Tag embed errors are the deliberate exception: they are logged and
 swallowed so a bad MP3 tag library doesn't block lyrics delivery.
 
-**Logging.** `log.Printf` with a bracketed status prefix: `[found]`,
-`[not_found]`, `[error]`, `[sync:embedded]`, etc. No structured logger; the
-prefix convention is the only schema.
+**Logging.** `log.Printf` with a bracketed or prefixed context label:
+`[found]`, `[not_found]`, `[error]`, `goscribe: job X → status`,
+`lrclib get "title" "artist" → 200 (123ms)`. Timing is logged for all
+external HTTP calls (lrclib, goscribe). No structured logger; the prefix
+convention is the schema.
 
 **Concurrency.** `Run`/`RunSongs`/`SyncAll` each create a fixed-size worker
 pool (4 goroutines) using a buffered jobs channel and a `sync.WaitGroup`.
 `TranscribeAll` uses a pool of 2 to avoid saturating the goscribe service with
 concurrent uploads. Background SSE goroutines communicate through `RunStore`
-channels. The stats cache uses a `sync.RWMutex` for concurrent reads.
+channels. The stats cache uses a `sync.RWMutex` for concurrent reads. The
+goscribe client's webhook results map is a `sync.Map` accessed from both the
+webhook HTTP handler goroutine and the `PollJob` goroutine.
 
 **Configuration.** All config comes from environment variables read at startup
 in `main.go`. There is no config file. Required variables cause a fatal log

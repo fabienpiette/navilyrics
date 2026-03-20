@@ -10,12 +10,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
 type Client struct {
 	baseURL string
 	http    *http.Client
+	// results holds job outcomes pushed via webhook before PollJob picks them up.
+	results sync.Map // jobID → *pollResponse
 }
 
 func New(baseURL string) *Client {
@@ -30,6 +33,10 @@ type JobOptions struct {
 	// Song enables song mode: demucs vocal extraction + lyrics validation.
 	// Requires goscribe to have demucs available.
 	Song bool
+	// CallbackURL is an optional webhook URL. Goscribe will POST the JobResult
+	// to this URL on each status change (vocals_extracting, transcribing,
+	// validating, completed, failed).
+	CallbackURL string
 }
 
 type submitResponse struct {
@@ -43,11 +50,12 @@ type lyricsValidation struct {
 }
 
 type pollResponse struct {
-	JobID             string            `json:"job_id"`
-	Status            string            `json:"status"`
-	Transcript        string            `json:"transcript"`
-	Error             string            `json:"error"`
-	LyricsValidation  *lyricsValidation `json:"lyrics_validation"`
+	JobID            string            `json:"job_id"`
+	Status           string            `json:"status"`
+	Step             string            `json:"step"`
+	Transcript       string            `json:"transcript"`
+	Error            string            `json:"error"`
+	LyricsValidation *lyricsValidation `json:"lyrics_validation"`
 }
 
 func (c *Client) SubmitJob(ctx context.Context, audioPath string, opts JobOptions) (string, error) {
@@ -63,6 +71,12 @@ func (c *Client) SubmitJob(ctx context.Context, audioPath string, opts JobOption
 	go func() {
 		if opts.Song {
 			if err := mw.WriteField("song", "true"); err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+		}
+		if opts.CallbackURL != "" {
+			if err := mw.WriteField("webhook_url", opts.CallbackURL); err != nil {
 				pw.CloseWithError(err)
 				return
 			}
@@ -108,6 +122,17 @@ func (c *Client) SubmitJob(ctx context.Context, audioPath string, opts JobOption
 	return result.JobID, nil
 }
 
+// NotifyResult is called by the webhook handler when goscribe pushes a job
+// result. It pre-populates the results map so PollJob can return immediately.
+func (c *Client) NotifyResult(jobID string, body []byte) error {
+	var r pollResponse
+	if err := json.Unmarshal(body, &r); err != nil {
+		return fmt.Errorf("goscribe: decode webhook payload: %w", err)
+	}
+	c.results.Store(jobID, &r)
+	return nil
+}
+
 func (c *Client) PollJob(ctx context.Context, jobID string, interval time.Duration) (string, error) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -118,6 +143,11 @@ func (c *Client) PollJob(ctx context.Context, jobID string, interval time.Durati
 		case <-ctx.Done():
 			return "", fmt.Errorf("goscribe: poll job %s: %w", jobID, ctx.Err())
 		case <-ticker.C:
+			// Check if a webhook already delivered the result.
+			if v, ok := c.results.LoadAndDelete(jobID); ok {
+				r := v.(*pollResponse)
+				return c.extractTranscript(r), nil
+			}
 			transcript, status, done, err := c.checkJob(ctx, jobID)
 			if err != nil {
 				return "", err
@@ -157,17 +187,24 @@ func (c *Client) checkJob(ctx context.Context, jobID string) (string, string, bo
 
 	switch result.Status {
 	case "completed":
-		// When song mode is used, prefer the AI-validated cleaned lyrics over
-		// the raw transcript, but only when confidence is high enough (≥60).
-		if v := result.LyricsValidation; v != nil && v.CleanedLyrics != "" && v.Confidence >= 60 {
-			log.Printf("goscribe: job %s using validated lyrics (confidence=%.0f)", jobID, v.Confidence)
-			return v.CleanedLyrics, result.Status, true, nil
-		}
-		log.Printf("goscribe: job %s using raw transcript", jobID)
-		return result.Transcript, result.Status, true, nil
+		return c.extractTranscript(&result), result.Status, true, nil
 	case "failed":
 		return "", result.Status, false, fmt.Errorf("goscribe: job %s failed: %s", jobID, result.Error)
 	default:
+		if result.Step != "" {
+			log.Printf("goscribe: job %s → %s (%s)", jobID, result.Status, result.Step)
+		}
 		return "", result.Status, false, nil
 	}
+}
+
+// extractTranscript picks the best available text from a completed job result:
+// validated cleaned lyrics when confidence is high enough, raw transcript otherwise.
+func (c *Client) extractTranscript(r *pollResponse) string {
+	if v := r.LyricsValidation; v != nil && v.CleanedLyrics != "" && v.Confidence >= 60 {
+		log.Printf("goscribe: job %s using validated lyrics (confidence=%.0f)", r.JobID, v.Confidence)
+		return v.CleanedLyrics
+	}
+	log.Printf("goscribe: job %s using raw transcript", r.JobID)
+	return r.Transcript
 }

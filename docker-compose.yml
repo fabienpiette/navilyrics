@@ -10,6 +10,8 @@ services:
       NAVIDROME_PASS: ${NAVIDROME_PASS}
       MUSIC_DIR: /music-clean:/music-data
       DRY_RUN: ${DRY_RUN:-false}
+      GOSCRIBE_URL: ${GOSCRIBE_URL:-}
+      NAVILYRICS_URL: ${NAVILYRICS_URL:-}
     volumes:
       - music-clean:/music-clean
       - music-data:/music-data

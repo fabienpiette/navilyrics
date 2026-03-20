@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -10,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/user/navilyrics/internal/lyrics"
+	"github.com/user/navilyrics/pkg/goscribe"
 )
 
 var transcribeJobs sync.Map
@@ -173,16 +177,74 @@ func (h *Handler) startTranscribeJob(songID string) {
 		return
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		song, err := h.nd.GetSong(ctx, songID)
 		if err != nil {
 			transcribeJobs.Store(songID, &transcribeJobResult{err: err})
 			return
 		}
+
+		// When webhook delivery is configured, submit the job and let goscribe
+		// push the result back via POST /webhook/goscribe/:songID. PollJob still
+		// runs as a fallback in case the webhook never arrives.
+		if h.goscribeClient != nil && h.selfURL != "" {
+			audioPath := h.proc.ResolveAudioPath(song.Path)
+			if audioPath == "" {
+				transcribeJobs.Store(songID, &transcribeJobResult{err: fmt.Errorf("audio file not found: %s", song.Path)})
+				return
+			}
+			callbackURL := h.selfURL + "/webhook/goscribe/" + songID
+			jobID, err := h.goscribeClient.SubmitJob(ctx, audioPath, goscribe.JobOptions{Song: true, CallbackURL: callbackURL})
+			if err != nil {
+				transcribeJobs.Store(songID, &transcribeJobResult{err: err})
+				return
+			}
+			// Poll as fallback at a longer interval — webhook will usually win.
+			transcript, err := h.goscribeClient.PollJob(ctx, jobID, 10*time.Second)
+			transcribeJobs.Store(songID, &transcribeJobResult{transcript: transcript, err: err})
+			return
+		}
+
 		_, transcript, err := h.proc.TranscribeSong(ctx, song)
 		transcribeJobs.Store(songID, &transcribeJobResult{transcript: transcript, err: err})
 	}()
+}
+
+// GoscribeWebhook receives job progress/completion pushes from goscribe.
+// Route: POST /webhook/goscribe/:songID
+func (h *Handler) GoscribeWebhook(w http.ResponseWriter, r *http.Request) {
+	if h.goscribeClient == nil {
+		http.NotFound(w, r)
+		return
+	}
+	songID := chi.URLParam(r, "songID")
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "read body", http.StatusBadRequest)
+		return
+	}
+
+	var payload struct {
+		JobID  string `json:"job_id"`
+		Status string `json:"status"`
+		Step   string `json:"step"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		http.Error(w, "bad payload", http.StatusBadRequest)
+		return
+	}
+
+	step := payload.Status
+	if payload.Step != "" {
+		step = payload.Step
+	}
+	log.Printf("webhook: goscribe job %s → %s (song %s)", payload.JobID, step, songID)
+
+	// Store in client results map so PollJob returns on its next tick.
+	_ = h.goscribeClient.NotifyResult(payload.JobID, body)
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) checkTranscribeJob(songID string) (*transcribeJobResult, bool) {

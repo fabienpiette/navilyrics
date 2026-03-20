@@ -163,7 +163,12 @@ func runServer(args []string) error {
 	}
 
 	goscribeEnabled := os.Getenv("GOSCRIBE_URL") != ""
-	h := handlers.New(nd, proc, tmpls, partials, "dev", providerNames(providers), goscribeEnabled)
+	var goscribeClient *goscribe.Client
+	if url := os.Getenv("GOSCRIBE_URL"); url != "" {
+		goscribeClient = goscribe.New(url)
+	}
+	selfURL := os.Getenv("NAVILYRICS_URL") // e.g. http://navilyrics:8081 — used for webhook callbacks
+	h := handlers.New(nd, proc, tmpls, partials, "dev", providerNames(providers), goscribeEnabled, goscribeClient, selfURL)
 
 	staticFS, err := fs.Sub(web.FS, "static")
 	if err != nil {
@@ -192,6 +197,7 @@ func runServer(args []string) error {
 	r.Post("/transcribe/song", h.TranscribeSong)
 	r.Get("/transcribe/song/poll", h.TranscribeSongPoll)
 	r.Post("/transcribe/song/save", h.TranscribeSongSave)
+	r.Post("/webhook/goscribe/{songID}", h.GoscribeWebhook)
 	r.Post("/transcribe/batch", h.TranscribeBatch)
 	r.Get("/transcribe/batch/{id}/events", h.TranscribeBatchEvents)
 	r.Get("/favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })

@@ -22,12 +22,13 @@ make run-cli      # batch CLI (dry-run by default)
 ## Features
 
 - **Synced + plain lyrics** — fetches `[mm:ss.xx]` timestamped LRC and plain text
-- **Two write targets** — `.lrc` sidecar file alongside the audio *and* embedded `LYRICS`/`SYNCEDLYRICS` tags (ID3v2 for MP3, Vorbis comments for FLAC)
+- **Two write targets** — `.lrc` sidecar alongside the audio *and* embedded `LYRICS`/`SYNCEDLYRICS` tags (ID3v2 for MP3, Vorbis comments for FLAC)
 - **Provider chain** — [lrclib.net](https://lrclib.net) → NetEase → [Genius](https://genius.com) (optional, requires token)
-- **Web UI** — browse your library, filter by lyrics status, edit LRC files, run batch jobs, stream live progress
+- **Web UI** — browse library, filter by lyrics status, edit LRC inline, run batch jobs, stream live progress
 - **CLI batch** — `navilyrics run` processes every missing song and triggers a Navidrome rescan when done
 - **Gap sync** — fills one-sided gaps: has `.lrc` but no tags? Tags get written. Has tags but no `.lrc`? Sidecar gets written.
-- **Audio transcription** — when no provider finds lyrics, transcribe the audio file via [goscribe](https://github.com/fabienpiette/goscribe); single-song preview-before-save or batch auto-save with live progress (requires `GOSCRIBE_URL`)
+- **Audio transcription** — when no provider finds lyrics, transcribe the audio via [goscribe](https://github.com/fabienpiette/goscribe) with vocal extraction and AI validation; single-song preview-before-save or batch auto-save with live progress. Webhook delivery reduces latency when `NAVILYRICS_URL` is set (requires `GOSCRIBE_URL`)
+- **Tag editor** — edit all standard metadata fields (title, artist, album artist, year, track, disc, genre, composer, comment) directly from the song panel; force-rebuilds corrupt ID3v2 tags transparently
 
 ## Install
 
@@ -55,9 +56,9 @@ make build
 navilyrics serve [--port 8080]
 ```
 
-- **Dashboard** — library coverage stats
-- **Songs** — browse, search, and filter by lyrics status; edit LRC inline; fetch per-song from any provider
-- **Run** — batch-fetch missing lyrics for all songs or filtered results, with live SSE log
+- **Dashboard** — library coverage stats with percentage bar
+- **Songs** — browse, search, filter by lyrics status; edit LRC inline; fetch per-song from any provider; edit audio metadata tags
+- **Run** — batch-fetch missing lyrics for all songs or filtered results, with live SSE log and filter pills
 - **Transcribe** — per-song transcription with editable preview; or "Transcribe missing" batch with live SSE progress (only shown when `GOSCRIBE_URL` is set)
 
 ### CLI batch
@@ -88,6 +89,7 @@ Walks all songs and fills one-sided lyrics gaps without re-fetching from provide
 | `DRY_RUN` | no | `false` | Skip writing files |
 | `GENIUS_TOKEN` | no | — | Adds Genius as a third provider |
 | `GOSCRIBE_URL` | no | — | Enables audio transcription via [goscribe](https://github.com/fabienpiette/goscribe) |
+| `NAVILYRICS_URL` | no | — | Public base URL of navilyrics (e.g. `http://host.docker.internal:8081`); enables webhook delivery from goscribe to reduce transcription latency |
 
 ## Architecture
 
@@ -95,7 +97,7 @@ Walks all songs and fills one-sided lyrics gaps without re-fetching from provide
 cmd/navilyrics/     — binary entry point (serve / run / sync subcommands)
 pkg/navidrome/      — Navidrome REST client (JWT auth, song listing)
 pkg/lrclib/         — lrclib.net client (exact get + fuzzy search)
-pkg/goscribe/       — goscribe HTTP client (job submit + poll)
+pkg/goscribe/       — goscribe HTTP client (job submit, poll, webhook receipt)
 pkg/tagger/         — audio tag read/write (MP3 ID3v2, FLAC Vorbis)
 internal/lyrics/    — Processor with worker pool, LRC writer, transcription
 internal/handlers/  — HTTP handlers (chi v5, html/template, HTMX)
