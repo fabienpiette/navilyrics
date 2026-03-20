@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -57,11 +58,15 @@ func (c *Client) Get(ctx context.Context, artist, title, album string, duration 
 	}
 	req.Header.Set("User-Agent", "navilyrics/1.0 (https://github.com/user/navilyrics)")
 
+	start := time.Now()
 	resp, err := c.httpClient.Do(req)
+	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
+		log.Printf("lrclib get %q %q: %v (%s)", title, artist, err, elapsed)
 		return Response{}, false, fmt.Errorf("lrclib get: %w", err)
 	}
 	defer resp.Body.Close()
+	log.Printf("lrclib get %q %q → %d (%s)", title, artist, resp.StatusCode, elapsed)
 
 	if resp.StatusCode == http.StatusNotFound {
 		return Response{}, false, nil
@@ -90,11 +95,15 @@ func (c *Client) Search(ctx context.Context, artist, title string, targetDuratio
 	}
 	req.Header.Set("User-Agent", "navilyrics/1.0 (https://github.com/user/navilyrics)")
 
+	start := time.Now()
 	resp, err := c.httpClient.Do(req)
+	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
+		log.Printf("lrclib search %q %q: %v (%s)", title, artist, err, elapsed)
 		return Response{}, false, fmt.Errorf("lrclib search: %w", err)
 	}
 	defer resp.Body.Close()
+	log.Printf("lrclib search %q %q → %d (%s)", title, artist, resp.StatusCode, elapsed)
 
 	if resp.StatusCode != http.StatusOK {
 		return Response{}, false, fmt.Errorf("lrclib search: status %d", resp.StatusCode)

@@ -85,11 +85,15 @@ func (c *Client) SubmitJob(ctx context.Context, audioPath string, opts JobOption
 	}
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 
+	start := time.Now()
 	resp, err := c.http.Do(req)
+	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
+		log.Printf("goscribe: submit %s: %v (%s)", filepath.Base(audioPath), err, elapsed)
 		return "", fmt.Errorf("goscribe: submit job: %w", err)
 	}
 	defer resp.Body.Close()
+	log.Printf("goscribe: submit %s → %d (%s)", filepath.Base(audioPath), resp.StatusCode, elapsed)
 
 	if resp.StatusCode != http.StatusAccepted {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
