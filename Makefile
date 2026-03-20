@@ -54,7 +54,7 @@ docker-build:
 
 ## Start the stack with Docker Compose
 up:
-	VERSION=$(VERSION) docker compose up -d --build
+	VERSION=$(VERSION) docker compose -f docker-compose.dev.yml up -d --build
 
 ## Stop the stack
 down:
@@ -62,7 +62,7 @@ down:
 
 ## Hard stop then rebuild and start the stack
 restart:
-	docker compose down && VERSION=$(VERSION) docker compose up -d --build
+	docker compose down && VERSION=$(VERSION) docker compose --file docker-compose.dev.yml up -d --build 
 
 ## Tail Docker Compose logs
 logs:

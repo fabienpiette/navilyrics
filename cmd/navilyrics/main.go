@@ -48,7 +48,7 @@ func providerNames(providers []lyrics.Provider) []string {
 
 func buildTranscribers() []lyrics.Transcriber {
 	if url := os.Getenv("GOSCRIBE_URL"); url != "" {
-		return []lyrics.Transcriber{lyrics.NewGoscribeTranscriber(goscribe.New(url))}
+		return []lyrics.Transcriber{lyrics.NewGoscribeTranscriber(goscribe.New(url), true)}
 	}
 	return nil
 }

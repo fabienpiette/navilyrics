@@ -24,19 +24,32 @@ func New(baseURL string) *Client {
 	}
 }
 
+// JobOptions controls optional goscribe job parameters.
+type JobOptions struct {
+	// Song enables song mode: demucs vocal extraction + lyrics validation.
+	// Requires goscribe to have demucs available.
+	Song bool
+}
+
 type submitResponse struct {
 	JobID  string `json:"job_id"`
 	Status string `json:"status"`
 }
 
-type pollResponse struct {
-	JobID      string `json:"job_id"`
-	Status     string `json:"status"`
-	Transcript string `json:"transcript"`
-	Error      string `json:"error"`
+type lyricsValidation struct {
+	CleanedLyrics string  `json:"cleaned_lyrics"`
+	Confidence    float64 `json:"confidence"`
 }
 
-func (c *Client) SubmitJob(ctx context.Context, audioPath string) (string, error) {
+type pollResponse struct {
+	JobID             string            `json:"job_id"`
+	Status            string            `json:"status"`
+	Transcript        string            `json:"transcript"`
+	Error             string            `json:"error"`
+	LyricsValidation  *lyricsValidation `json:"lyrics_validation"`
+}
+
+func (c *Client) SubmitJob(ctx context.Context, audioPath string, opts JobOptions) (string, error) {
 	f, err := os.Open(audioPath)
 	if err != nil {
 		return "", fmt.Errorf("goscribe: open audio: %w", err)
@@ -46,6 +59,12 @@ func (c *Client) SubmitJob(ctx context.Context, audioPath string) (string, error
 	pr, pw := io.Pipe()
 	mw := multipart.NewWriter(pw)
 	go func() {
+		if opts.Song {
+			if err := mw.WriteField("song", "true"); err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+		}
 		part, err := mw.CreateFormFile("file", filepath.Base(audioPath))
 		if err != nil {
 			pw.CloseWithError(err)
@@ -125,6 +144,11 @@ func (c *Client) checkJob(ctx context.Context, jobID string) (string, bool, erro
 
 	switch result.Status {
 	case "completed":
+		// When song mode is used, prefer the AI-validated cleaned lyrics over
+		// the raw transcript, but only when confidence is high enough (≥60).
+		if v := result.LyricsValidation; v != nil && v.CleanedLyrics != "" && v.Confidence >= 60 {
+			return v.CleanedLyrics, true, nil
+		}
 		return result.Transcript, true, nil
 	case "failed":
 		return "", false, fmt.Errorf("goscribe: job %s failed: %s", jobID, result.Error)

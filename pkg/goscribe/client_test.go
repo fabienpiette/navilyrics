@@ -35,7 +35,7 @@ func TestSubmitJob_success(t *testing.T) {
 	}
 
 	c := goscribe.New(srv.URL)
-	jobID, err := c.SubmitJob(context.Background(), f)
+	jobID, err := c.SubmitJob(context.Background(), f, goscribe.JobOptions{})
 	if err != nil {
 		t.Fatalf("SubmitJob: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestSubmitJob_success(t *testing.T) {
 
 func TestSubmitJob_fileNotFound(t *testing.T) {
 	c := goscribe.New("http://localhost:9")
-	_, err := c.SubmitJob(context.Background(), "/nonexistent/audio.mp3")
+	_, err := c.SubmitJob(context.Background(), "/nonexistent/audio.mp3", goscribe.JobOptions{})
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
