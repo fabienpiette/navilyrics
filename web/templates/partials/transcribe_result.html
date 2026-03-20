@@ -1,6 +1,12 @@
 <div id="transcribe-area" class="transcribe-area">
   {{if .Error -}}
   <span class="badge badge-error">error</span> <span class="muted">{{.Error}}</span>
+  {{if .SongID}}
+  <form hx-post="/transcribe/song" hx-target="#transcribe-area" hx-swap="outerHTML" style="display:inline;margin-left:.5rem">
+    <input type="hidden" name="song_id" value="{{.SongID}}">
+    <button type="submit" class="action-btn">Retry</button>
+  </form>
+  {{end}}
   {{- else -}}
   <span class="badge badge-transcribed">{{.Message}}</span>
   {{- end}}

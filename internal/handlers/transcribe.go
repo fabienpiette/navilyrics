@@ -31,6 +31,7 @@ type transcribePreviewData struct {
 }
 
 type transcribeResultData struct {
+	SongID  string
 	Message string
 	Error   string
 }
@@ -43,11 +44,11 @@ func (h *Handler) TranscribeSong(w http.ResponseWriter, r *http.Request) {
 	}
 	song, err := h.nd.GetSong(r.Context(), songID)
 	if err != nil {
-		h.renderPartial(w, "transcribe_result.html", transcribeResultData{Error: "song not found: " + err.Error()})
+		h.renderPartial(w, "transcribe_result.html", transcribeResultData{SongID: songID, Error: "song not found: " + err.Error()})
 		return
 	}
 	if h.proc.ResolveAudioPath(song.Path) == "" {
-		h.renderPartial(w, "transcribe_result.html", transcribeResultData{Error: "audio file not found on disk"})
+		h.renderPartial(w, "transcribe_result.html", transcribeResultData{SongID: songID, Error: "audio file not found on disk"})
 		return
 	}
 	h.renderPartial(w, "transcribe_poll.html", transcribePollData{SongID: songID, Attempt: 0, JobID: ""})
@@ -59,7 +60,7 @@ func (h *Handler) TranscribeSongPoll(w http.ResponseWriter, r *http.Request) {
 	attempt, _ := strconv.Atoi(r.URL.Query().Get("attempt"))
 
 	if attempt >= 100 {
-		h.renderPartial(w, "transcribe_result.html", transcribeResultData{Error: "transcription timed out after 5 minutes"})
+		h.renderPartial(w, "transcribe_result.html", transcribeResultData{SongID: songID, Error: "transcription timed out after 5 minutes"})
 		return
 	}
 
@@ -77,7 +78,7 @@ func (h *Handler) TranscribeSongPoll(w http.ResponseWriter, r *http.Request) {
 	transcribeJobs.Delete(jobID)
 
 	if result.err != nil {
-		h.renderPartial(w, "transcribe_result.html", transcribeResultData{Error: result.err.Error()})
+		h.renderPartial(w, "transcribe_result.html", transcribeResultData{SongID: songID, Error: result.err.Error()})
 		return
 	}
 	h.renderPartial(w, "transcript_preview.html", transcribePreviewData{SongID: songID, Transcript: result.transcript})
@@ -92,10 +93,10 @@ func (h *Handler) TranscribeSongSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.proc.SaveLyrics(song, transcript, ""); err != nil {
-		h.renderPartial(w, "transcribe_result.html", transcribeResultData{Error: "save failed: " + err.Error()})
+		h.renderPartial(w, "transcribe_result.html", transcribeResultData{SongID: songID, Error: "save failed: " + err.Error()})
 		return
 	}
-	h.renderPartial(w, "transcribe_result.html", transcribeResultData{Message: "Lyrics saved."})
+	h.renderPartial(w, "transcribe_result.html", transcribeResultData{SongID: songID, Message: "Lyrics saved."})
 }
 
 func (h *Handler) TranscribeBatch(w http.ResponseWriter, r *http.Request) {
